@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:classmgmt;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+server:
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+
+app:
+  access-password: ""
+  seed-sample: true
+  cors-allowed-origins: "*"

@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: class-member-backend
+  config:
+    # 数据库密码等敏感配置放在 application-local.yml（已 gitignore，不入库）
+    import: optional:classpath:application-local.yml
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/class_mgmt?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: ""
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        # avoid re-tightening large text columns on restart
+        jdbc:
+          batch_size: 20
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 200MB
+
+server:
+  address: 127.0.0.1
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+
+app:
+  access-password: ""
+  seed-sample: true
+  cors-allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
+  tesseract:
+    executable: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+    tessdata: "D:\\AI application development\\XiaomiMiMo\\mimo_Class_Management_System\\backend\\tessdata"
+    lang: "chi_sim+eng"
+    psm: "6"
+  upload-dir: "D:\\AI application development\\XiaomiMiMo\\mimo_Class_Management_System\\backend\\uploads\\announcements"
+

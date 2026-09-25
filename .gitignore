@@ -1,0 +1,45 @@
+# Build
+backend/target/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# OCR language packs (optional, ~6MB; can re-download)
+backend/tessdata/*.traineddata
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.class
+
+# Secrets / local overrides — NEVER commit passwords
+backend/src/main/resources/application-local.yml
+**/application-local.properties
+.env
+.env.*
+
+# Logs / OS
+*.log
+logs/
+backend/*.txt
+backend/*-out.log
+backend/*-err.log
+.DS_Store
+Thumbs.db
+
+# Compose worktrees (local)
+.worktrees/*
+!.worktrees/.gitignore
+
+# ZCode local workspace
+.zcode/
+
+# Uploaded files (runtime data)
+backend/uploads/
+
+# Maven wrapper cache
+.mvn/wrapper/maven-wrapper.jar
