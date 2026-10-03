@@ -79,6 +79,7 @@ public class ScholarshipImportService {
         List<Map<String, Object>> matched = new ArrayList<>();
         List<Map<String, Object>> ambiguous = new ArrayList<>();
         int unmatchedCount = 0;
+        int noAwardCount = 0;
         int totalRows = 0;
 
         Map<String, Student> noMap = new HashMap<>();
@@ -102,7 +103,13 @@ public class ScholarshipImportService {
             }
             totalRows++;
             String studentNo = cleanStudentNo(mapping.noCol >= 0 ? cellAt(row, mapping.noCol) : null);
-            String awardName = normalizeAwardName(mapping.levelCol >= 0 ? cellAt(row, mapping.levelCol) : null);
+            String rawAward = mapping.levelCol >= 0 ? cellAt(row, mapping.levelCol) : null;
+            // 等级列为空 = 该生未获奖（全院名单里全班同学都在列），直接跳过
+            if (mapping.levelCol >= 0 && isNoAwardMarker(rawAward)) {
+                noAwardCount++;
+                continue;
+            }
+            String awardName = normalizeAwardName(rawAward);
             BigDecimal amount = mapping.amountCol >= 0 ? parseAmount(cellAt(row, mapping.amountCol)) : null;
 
             Student student = null;
@@ -155,6 +162,7 @@ public class ScholarshipImportService {
         result.put("matched", matched);
         result.put("others", ambiguous);
         result.put("unmatchedCount", unmatchedCount);
+        result.put("noAwardCount", noAwardCount);
         return result;
     }
 
@@ -289,6 +297,15 @@ public class ScholarshipImportService {
     private String normalizeAwardName(String raw) {
         String v = NameNormalizer.normalize(raw);
         return v.isEmpty() ? "未注明" : v;
+    }
+
+    /** 等级列出现这些内容视为"未获奖"（空、横杠、"无"）。 */
+    private boolean isNoAwardMarker(String raw) {
+        if (raw == null) {
+            return true;
+        }
+        String v = raw.trim();
+        return v.isEmpty() || "-".equals(v) || "—".equals(v) || "－".equals(v) || "无".equals(v);
     }
 
     public BigDecimal parseAmount(String raw) {

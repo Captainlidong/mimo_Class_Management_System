@@ -175,6 +175,30 @@ class ScholarshipImportServiceTest {
     }
 
     @Test
+    void blankLevelMeansNotAwardedAndSkipped() {
+        when(studentRepository.findAll()).thenReturn(roster());
+        // 全院名单：全班同学都在列，等级列只有获奖者有值
+        MockMultipartFile file = excel(new String[][]{
+                {"学号", "姓名", "班级", "奖学金等级"},
+                {"2112616151", "绳涵戈", "计科2301", "三等"},
+                {"2112616152", "孟庆成", "计科2301", ""},
+                {"2112616153", "王小明", "计科2301", "—"},
+                {"2112616154", "徐昊", "计科2301", "无"}
+        });
+
+        Map<String, Object> result = service().parse(null, file, null, null, null, null, null);
+
+        assertTrue((Boolean) result.get("recognized"));
+        assertEquals(4, result.get("totalRows"), "全班 4 行都计入总行数");
+        assertEquals(3, result.get("noAwardCount"), "空/—/无 三行等级为空未获奖");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> matched = (List<Map<String, Object>>) result.get("matched");
+        assertEquals(1, matched.size(), "只有等级有值的绳涵戈才算获奖");
+        assertEquals("绳涵戈", matched.get(0).get("studentName"));
+        assertEquals("三等", matched.get(0).get("awardName"));
+    }
+
+    @Test
     void cleanStudentNoRemovesSpacesAndDashes() {
         assertEquals("2112616151", service().cleanStudentNo("2112 616-151"));
         assertNull(service().cleanStudentNo("   "));

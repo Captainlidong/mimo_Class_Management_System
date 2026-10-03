@@ -194,7 +194,8 @@
     <el-dialog v-model="previewVisible" title="识别预览（确认后才入库）" width="860px" top="4vh" append-to-body :close-on-click-modal="false">
       <div class="stat-row" style="margin-bottom: 10px">
         <div class="stat-item"><div class="label">全院数据行</div><div class="value">{{ parseResult ? parseResult.totalRows : 0 }}</div></div>
-        <div class="stat-item" style="background:#f0fdf4"><div class="label">本班命中</div><div class="value">{{ checkedCount }}</div></div>
+        <div class="stat-item" style="background:#f0fdf4"><div class="label">本班获奖命中</div><div class="value">{{ checkedCount }}</div></div>
+        <div class="stat-item" style="background:#fefce8"><div class="label">未获奖行（等级为空）</div><div class="value">{{ parseResult ? (parseResult.noAwardCount || 0) : 0 }}</div></div>
         <div class="stat-item" style="background:#fff7ed"><div class="label">未匹配/同名</div><div class="value">{{ (parseResult && parseResult.others ? parseResult.others.length : 0) }}</div></div>
       </div>
 
