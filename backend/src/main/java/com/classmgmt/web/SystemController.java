@@ -8,6 +8,8 @@ import com.classmgmt.domain.GroupInfo;
 import com.classmgmt.domain.GroupMember;
 import com.classmgmt.domain.LeaveRecord;
 import com.classmgmt.domain.LongTask;
+import com.classmgmt.domain.ScholarshipAward;
+import com.classmgmt.domain.ScholarshipBatch;
 import com.classmgmt.domain.Student;
 import com.classmgmt.repo.*;
 import com.classmgmt.service.StudentService;
@@ -36,6 +38,8 @@ public class SystemController {
     private final AnnouncementVersionRepository announcementVersionRepository;
     private final AnnouncementFileRepository announcementFileRepository;
     private final LeaveRecordRepository leaveRecordRepository;
+    private final com.classmgmt.repo.ScholarshipBatchRepository scholarshipBatchRepository;
+    private final com.classmgmt.repo.ScholarshipAwardRepository scholarshipAwardRepository;
     private final StudentService studentService;
     private final ObjectMapper objectMapper;
 
@@ -50,6 +54,8 @@ public class SystemController {
                             AnnouncementVersionRepository announcementVersionRepository,
                             AnnouncementFileRepository announcementFileRepository,
                             LeaveRecordRepository leaveRecordRepository,
+                            com.classmgmt.repo.ScholarshipBatchRepository scholarshipBatchRepository,
+                            com.classmgmt.repo.ScholarshipAwardRepository scholarshipAwardRepository,
                             StudentService studentService,
                             ObjectMapper objectMapper,
                             com.classmgmt.config.AppProperties appProperties) {
@@ -62,6 +68,8 @@ public class SystemController {
         this.announcementVersionRepository = announcementVersionRepository;
         this.announcementFileRepository = announcementFileRepository;
         this.leaveRecordRepository = leaveRecordRepository;
+        this.scholarshipBatchRepository = scholarshipBatchRepository;
+        this.scholarshipAwardRepository = scholarshipAwardRepository;
         this.studentService = studentService;
         this.objectMapper = objectMapper;
         this.appProperties = appProperties;
@@ -92,6 +100,8 @@ public class SystemController {
         data.put("announcementVersions", announcementVersionRepository.findAll());
         data.put("announcementFiles", announcementFileRepository.findAll());
         data.put("leaveRecords", leaveRecordRepository.findAll());
+        data.put("scholarshipBatches", scholarshipBatchRepository.findAll());
+        data.put("scholarshipAwards", scholarshipAwardRepository.findAll());
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(data);
@@ -104,6 +114,7 @@ public class SystemController {
             Map<Long, Long> groupIdMap = new HashMap<>();
             Map<Long, Long> taskIdMap = new HashMap<>();
             Map<Long, Long> announcementIdMap = new HashMap<>();
+            Map<Long, Long> scholarshipBatchIdMap = new HashMap<>();
 
             if (body.get("students") instanceof List<?> students) {
                 studentRepository.deleteAll();
@@ -247,6 +258,40 @@ public class SystemController {
                 }
             }
 
+            if (body.get("scholarshipBatches") instanceof List<?> items) {
+                scholarshipAwardRepository.deleteAll();
+                scholarshipAwardRepository.flush();
+                scholarshipBatchRepository.deleteAll();
+                scholarshipBatchRepository.flush();
+                for (Object o : items) {
+                    ScholarshipBatch b = objectMapper.convertValue(o, ScholarshipBatch.class);
+                    Long oldId = b.getId();
+                    b.setId(null);
+                    ScholarshipBatch saved = scholarshipBatchRepository.save(b);
+                    if (oldId != null) {
+                        scholarshipBatchIdMap.put(oldId, saved.getId());
+                    }
+                }
+            }
+
+            if (body.get("scholarshipAwards") instanceof List<?> items) {
+                for (Object o : items) {
+                    ScholarshipAward a = objectMapper.convertValue(o, ScholarshipAward.class);
+                    a.setId(null);
+                    Long oldBatchId = a.getBatchId();
+                    Long newBatchId = scholarshipBatchIdMap.getOrDefault(oldBatchId, oldBatchId);
+                    Long oldStudentId = a.getStudentId();
+                    Long newStudentId = studentIdMap.getOrDefault(oldStudentId, oldStudentId);
+                    if (!scholarshipBatchRepository.existsById(newBatchId)
+                            || !studentRepository.existsById(newStudentId)) {
+                        continue;
+                    }
+                    a.setBatchId(newBatchId);
+                    a.setStudentId(newStudentId);
+                    scholarshipAwardRepository.save(a);
+                }
+            }
+
             if (body.get("locked") instanceof Boolean locked) {
                 studentService.setLocked(locked);
             } else if (body.get("locked") instanceof String s) {
@@ -261,6 +306,7 @@ public class SystemController {
             result.put("checkRecords", checkRecordRepository.count());
             result.put("announcements", announcementRepository.count());
             result.put("leaveRecords", leaveRecordRepository.count());
+            result.put("scholarshipBatches", scholarshipBatchRepository.count());
             return ApiResponse.ok(result);
         } catch (Exception e) {
             return ApiResponse.fail(400, "导入失败：" + e.getMessage());

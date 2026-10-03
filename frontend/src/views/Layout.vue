@@ -16,6 +16,7 @@
         <el-menu-item index="/groups"><span class="menu-ico">🫧</span> 自定义分组</el-menu-item>
         <el-menu-item index="/announcements"><span class="menu-ico">📣</span> 群发素材</el-menu-item>
         <el-menu-item index="/leaves"><span class="menu-ico">🌙</span> 请假记录</el-menu-item>
+        <el-menu-item index="/scholarships"><span class="menu-ico">🏆</span> 奖学金统计</el-menu-item>
       </el-menu>
       <div class="aside-footer">🌷 默认仅本机访问</div>
     </el-aside>

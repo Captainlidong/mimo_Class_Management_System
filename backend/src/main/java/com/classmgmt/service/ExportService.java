@@ -27,10 +27,13 @@ public class ExportService {
 
     private final HistoryService historyService;
     private final LeaveService leaveService;
+    private final ScholarshipService scholarshipService;
 
-    public ExportService(HistoryService historyService, LeaveService leaveService) {
+    public ExportService(HistoryService historyService, LeaveService leaveService,
+                         ScholarshipService scholarshipService) {
         this.historyService = historyService;
         this.leaveService = leaveService;
+        this.scholarshipService = scholarshipService;
     }
 
     public ResponseEntity<byte[]> exportRecord(Long id, String format) {
@@ -136,6 +139,99 @@ public class ExportService {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }
         return value;
+    }
+
+    private static final List<String> SCHOLARSHIP_COLUMNS = List.of(
+            "序号", "姓名", "学号", "奖学金名称", "金额（元）", "申请表状态", "交表时间", "备注");
+
+    public ResponseEntity<byte[]> exportScholarships(Long batchId, String format) {
+        Map<String, Object> batch = scholarshipService.getBatch(batchId);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> awards = (List<Map<String, Object>>) batch.get("awards");
+        String base = sanitizeFileName(String.valueOf(batch.get("name"))) + "_获奖名单";
+        return switch (format) {
+            case "xlsx", "excel" -> scholarshipXlsx(batch, awards, base);
+            case "csv" -> scholarshipCsv(batch, awards, base);
+            default -> throw GlobalExceptionHandler.badRequest("不支持的导出格式：" + format);
+        };
+    }
+
+    private ResponseEntity<byte[]> scholarshipXlsx(Map<String, Object> batch,
+                                                   List<Map<String, Object>> awards, String base) {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("获奖名单");
+            CellStyle header = workbook.createCellStyle();
+            Font font = workbook.createFont();
+            font.setBold(true);
+            header.setFont(font);
+            header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            Row meta = sheet.createRow(0);
+            meta.createCell(0).setCellValue("批次");
+            meta.createCell(1).setCellValue(String.valueOf(batch.get("name")));
+            Row counts = sheet.createRow(1);
+            counts.createCell(0).setCellValue("统计");
+            counts.createCell(1).setCellValue("获奖 " + awards.size()
+                    + " 人 / 已交表 " + batch.get("receivedCount") + " 人");
+
+            Row head = sheet.createRow(3);
+            for (int i = 0; i < SCHOLARSHIP_COLUMNS.size(); i++) {
+                Cell c = head.createCell(i);
+                c.setCellValue(SCHOLARSHIP_COLUMNS.get(i));
+                c.setCellStyle(header);
+            }
+            int r = 4;
+            for (Map<String, Object> row : awards) {
+                Row line = sheet.createRow(r++);
+                List<String> cells = scholarshipCells(row);
+                for (int i = 0; i < cells.size(); i++) {
+                    line.createCell(i).setCellValue(cells.get(i));
+                }
+            }
+            for (int i = 0; i < SCHOLARSHIP_COLUMNS.size(); i++) {
+                sheet.autoSizeColumn(i);
+            }
+            workbook.write(out);
+            return file(base + ".xlsx",
+                    MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                    out.toByteArray());
+        } catch (Exception e) {
+            throw new IllegalStateException("导出 Excel 失败：" + e.getMessage(), e);
+        }
+    }
+
+    private ResponseEntity<byte[]> scholarshipCsv(Map<String, Object> batch,
+                                                  List<Map<String, Object>> awards, String base) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('\uFEFF');
+        sb.append("批次,").append(csvEscape(String.valueOf(batch.get("name")))).append("\n");
+        sb.append(String.join(",", SCHOLARSHIP_COLUMNS)).append("\n");
+        for (Map<String, Object> row : awards) {
+            List<String> cells = scholarshipCells(row);
+            for (int i = 0; i < cells.size(); i++) {
+                if (i > 0) {
+                    sb.append(",");
+                }
+                sb.append(csvEscape(cells.get(i)));
+            }
+            sb.append("\n");
+        }
+        return file(base + ".csv", MediaType.parseMediaType("text/csv;charset=UTF-8"),
+                sb.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private List<String> scholarshipCells(Map<String, Object> row) {
+        boolean received = Boolean.TRUE.equals(row.get("formReceived"));
+        return List.of(
+                String.valueOf(row.get("id")),
+                String.valueOf(row.get("name")),
+                row.get("studentNo") == null ? "" : String.valueOf(row.get("studentNo")),
+                row.get("awardName") == null ? "未注明" : String.valueOf(row.get("awardName")),
+                row.get("amount") == null ? "" : String.valueOf(row.get("amount")),
+                received ? "已交表" : "未交表",
+                leaveService.display((java.time.Instant) row.get("receivedAt")),
+                row.get("remark") == null ? "" : String.valueOf(row.get("remark")));
     }
 
     private ResponseEntity<byte[]> xlsx(CheckResultDTO dto, String base) {
