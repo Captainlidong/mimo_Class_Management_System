@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class ImageOcrService {
 
-    @Value("${app.tesseract.executable:C:\\Program Files\\Tesseract-OCR\\tesseract.exe}")
+    @Value("${app.tesseract.executable:tesseract}")
     private String tesseractExecutable;
 
     @Value("${app.tesseract.tessdata:}")

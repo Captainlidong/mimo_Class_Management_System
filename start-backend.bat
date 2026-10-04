@@ -2,9 +2,10 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 set PORT=8080
-set JAVA=D:\CS\Javajdk\bin\java.exe
-set "JAR=D:\AI application development\XiaomiMiMo\mimo_Class_Management_System\backend\target\class-member-backend-1.0.0.jar"
-set "RUNJAR=D:\tmp\classmgmt-app.jar"
+rem 若 java 不在 PATH 中，请把下行改为 java.exe 的完整路径
+set "JAVA=java"
+set "JAR=%~dp0backend\target\class-member-backend-1.0.0.jar"
+set "RUNJAR=%TEMP%\classmgmt-app.jar"
 
 echo ============================================
 echo   启动班级管理系统后端
@@ -26,7 +27,6 @@ if not exist "%JAR%" (
   exit /b 1
 )
 
-if not exist "D:\tmp" mkdir "D:\tmp"
 copy /Y "%JAR%" "%RUNJAR%" >nul
 
 echo [1/2] 正在启动后端...
