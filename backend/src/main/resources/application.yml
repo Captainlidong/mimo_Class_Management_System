@@ -37,10 +37,11 @@ app:
   access-password: ""
   seed-sample: true
   cors-allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
+  # 上传目录：留空/省略时使用 <运行目录>/uploads/announcements，可在 application-local.yml 覆盖
+  # OCR：默认优先 Windows 系统自带 OCR（无需额外安装），Tesseract 仅作回退（可选）。
+  # 安装 Tesseract 后若未加入 PATH，请在 application-local.yml 覆盖 executable 与 tessdata
   tesseract:
-    executable: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
-    tessdata: "D:\\AI application development\\XiaomiMiMo\\mimo_Class_Management_System\\backend\\tessdata"
+    executable: "tesseract"
     lang: "chi_sim+eng"
     psm: "6"
-  upload-dir: "D:\\AI application development\\XiaomiMiMo\\mimo_Class_Management_System\\backend\\uploads\\announcements"
 

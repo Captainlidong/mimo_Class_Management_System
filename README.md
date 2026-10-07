@@ -29,7 +29,7 @@ mimo_Class_Management_System/
 
 ### 1. 数据库
 
-已创建：`class_mgmt`（MySQL80 @ 127.0.0.1:3306）。
+创建数据库：`class_mgmt`（MySQL 8，默认 `127.0.0.1:3306`）。
 
 连接配置见 `backend/src/main/resources/application.yml`（请按需修改账号密码）。
 
@@ -60,11 +60,7 @@ npm.cmd run dev
 
 ### 4. 一键用 IDEA 打开
 
-双击运行项目根目录 `open-in-idea.bat`，或：
-
-```powershell
-& "D:\CS\Idea\IntelliJ IDEA 2022.3.2\bin\idea64.exe" "D:\AI application development\XiaomiMiMo\mimo_Class_Management_System"
-```
+双击运行项目根目录 `open-in-idea.bat`。脚本会在常见安装位置自动查找 IntelliJ IDEA；若未自动找到，编辑脚本中的 `IDEA_EXE` 为你的 `idea64.exe` 完整路径即可。
 
 ## 核心功能
 
