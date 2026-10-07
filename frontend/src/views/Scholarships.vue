@@ -53,7 +53,7 @@
     <!-- ============ 批次详情视图 ============ -->
     <template v-else>
       <div class="toolbar">
-        <el-button @click="currentBatch = null">← 返回</el-button>
+        <el-button @click="goBack">← 返回</el-button>
         <h2 class="page-title" style="margin: 0">{{ currentBatch.name }}</h2>
         <div style="flex: 1"></div>
         <el-button type="primary" @click="uploadVisible = true">📤 上传名单识别</el-button>
@@ -358,6 +358,12 @@ async function openBatch(row) {
   awards.value = data.data.awards || []
 }
 
+/** 返回批次列表：切视图的同时重新拉取统计（收表进度等在详情里的改动要反映到列表）。 */
+async function goBack() {
+  currentBatch.value = null
+  await load()
+}
+
 function openCreateBatch() {
   batchForm.name = ''
   batchForm.remark = ''
@@ -506,6 +512,7 @@ async function toggleReceived(row) {
   await api.post(`/scholarships/awards/${row.id}/mark-received`, { received: !row.formReceived })
   ElMessage.success(row.formReceived ? `已标记 ${row.name} 未交表` : `${row.name} 申请表已收到 🌷`)
   await openBatch(currentBatch.value)
+  await load()
 }
 
 async function loadStudents() {
@@ -557,6 +564,7 @@ async function saveEdit() {
   editVisible.value = false
   ElMessage.success('已更新')
   await openBatch(currentBatch.value)
+  await load()
 }
 
 async function removeAward(row) {
