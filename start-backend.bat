@@ -4,6 +4,8 @@ setlocal EnableDelayedExpansion
 set PORT=8080
 rem 若 java 不在 PATH 中，请把下行改为 java.exe 的完整路径
 set "JAVA=java"
+rem 本机专属覆盖（可选，此文件不入库）：创建 start-backend.local.bat 并写入 set "JAVA=完整路径"
+if exist "%~dp0start-backend.local.bat" call "%~dp0start-backend.local.bat"
 set "JAR=%~dp0backend\target\class-member-backend-1.0.0.jar"
 set "RUNJAR=%TEMP%\classmgmt-app.jar"
 
