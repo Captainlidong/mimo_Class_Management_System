@@ -41,9 +41,10 @@
         <el-table-column label="创建时间" width="150">
           <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150">
+        <el-table-column label="操作" width="180">
           <template #default="{ row }">
             <el-button link type="primary" @click="openBatch(row)">进入</el-button>
+            <el-button link type="primary" @click="openEditBatch(row)">编辑</el-button>
             <el-button link type="danger" @click="removeBatch(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -126,6 +127,22 @@
       <template #footer>
         <el-button @click="batchDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="createBatch">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑批次名称/备注 -->
+    <el-dialog v-model="batchEditVisible" title="编辑批次" width="480px" append-to-body>
+      <el-form label-width="90px">
+        <el-form-item label="批次名称">
+          <el-input v-model="batchEditForm.name" maxlength="128" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="batchEditForm.remark" maxlength="512" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchEditVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveBatchEdit">保存</el-button>
       </template>
     </el-dialog>
 
@@ -314,6 +331,8 @@ const awards = ref([])
 const students = ref([])
 const batchDialogVisible = ref(false)
 const batchForm = reactive({ name: '', remark: '' })
+const batchEditVisible = ref(false)
+const batchEditForm = reactive({ id: null, name: '', remark: '' })
 
 const uploadVisible = ref(false)
 const uploadDragOver = ref(false)
@@ -379,6 +398,31 @@ async function createBatch() {
   batchDialogVisible.value = false
   ElMessage.success('批次已创建，可以上传名单了')
   await openBatch(data.data)
+}
+
+function openEditBatch(row) {
+  batchEditForm.id = row.id
+  batchEditForm.name = row.name
+  batchEditForm.remark = row.remark || ''
+  batchEditVisible.value = true
+}
+
+async function saveBatchEdit() {
+  if (!batchEditForm.name.trim()) {
+    ElMessage.warning('批次名称不能为空')
+    return
+  }
+  await api.patch(`/scholarships/batches/${batchEditForm.id}`, {
+    name: batchEditForm.name.trim(),
+    remark: batchEditForm.remark
+  })
+  batchEditVisible.value = false
+  ElMessage.success('批次已更新')
+  await load()
+  // 若正在查看的就是这个批次，同步刷新详情标题
+  if (currentBatch.value && currentBatch.value.id === batchEditForm.id) {
+    await openBatch(batchEditForm)
+  }
 }
 
 async function removeBatch(row) {
@@ -618,6 +662,7 @@ onDeactivated(() => {
   manualVisible.value = false
   editVisible.value = false
   batchDialogVisible.value = false
+  batchEditVisible.value = false
 })
 </script>
 
