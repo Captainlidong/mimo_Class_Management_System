@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -141,7 +142,24 @@ public class ScholarshipService {
             item.put("createdAt", a.getCreatedAt());
             rows.add(item);
         }
+        // 按学号后两位升序排列（无学号的排最后；后两位相同时按完整学号排）
+        rows.sort(Comparator
+                .comparingInt((Map<String, Object> r) -> trailingTwoDigits((String) r.get("studentNo")))
+                .thenComparing(r -> String.valueOf(r.get("studentNo") == null ? "" : r.get("studentNo"))));
         return rows;
+    }
+
+    /** 学号后两位数字，用于排序；无学号或学号里没有数字时排到最后。 */
+    private int trailingTwoDigits(String studentNo) {
+        if (studentNo == null) {
+            return Integer.MAX_VALUE;
+        }
+        String digits = studentNo.replaceAll("\\D", "");
+        if (digits.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        String last2 = digits.length() <= 2 ? digits : digits.substring(digits.length() - 2);
+        return Integer.parseInt(last2);
     }
 
     @Transactional(readOnly = true)
