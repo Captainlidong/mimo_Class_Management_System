@@ -243,9 +243,11 @@
             <el-tag size="small" effect="plain">{{ row.matchedBy }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="90">
+        <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <el-tag v-if="row.duplicate" type="info" size="small">批次内已存在</el-tag>
+            <el-tag v-if="row.duplicate" type="info" size="small">
+              {{ row.duplicateReason === 'file' ? '文件内重复' : '批次内已存在' }}
+            </el-tag>
             <el-tag v-else type="success" size="small">可导入</el-tag>
           </template>
         </el-table-column>
@@ -276,8 +278,8 @@
     <el-dialog v-model="manualVisible" title="手动添加获奖记录" width="520px" append-to-body>
       <el-form label-width="90px">
         <el-form-item label="获奖同学">
-          <el-select v-model="manualForm.studentId" filterable placeholder="输入姓名或学号搜索" style="width: 100%">
-            <el-option v-for="s in students" :key="s.id" :label="`${s.name}（${s.studentNo || '无学号'}）`" :value="s.id" />
+          <el-select v-model="manualForm.studentId" filterable placeholder="输入姓名或学号搜索（已添加的同学不再显示）" style="width: 100%">
+            <el-option v-for="s in availableStudents" :key="s.id" :label="`${s.name}（${s.studentNo || '无学号'}）`" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="奖学金名称">
@@ -354,6 +356,11 @@ const amountSum = computed(() => {
   return sum > 0 ? Math.round(sum * 100) / 100 : 0
 })
 const checkedCount = computed(() => previewRows.value.filter((r) => r.checked).length)
+// 手动添加时过滤掉本批次已添加过的同学
+const availableStudents = computed(() => {
+  const used = new Set(awards.value.map((a) => a.studentId))
+  return students.value.filter((s) => !used.has(s.id))
+})
 const sampleColCount = computed(() => {
   if (!parseResult.value || !parseResult.value.samples) return 1
   return Math.max(...parseResult.value.samples.map((r) => r.length), 1)

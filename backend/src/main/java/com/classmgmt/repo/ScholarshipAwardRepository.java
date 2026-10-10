@@ -8,5 +8,7 @@ import java.util.List;
 public interface ScholarshipAwardRepository extends JpaRepository<ScholarshipAward, Long> {
     List<ScholarshipAward> findByBatchIdOrderByCreatedAtAscIdAsc(Long batchId);
 
+    boolean existsByBatchIdAndStudentId(Long batchId, Long studentId);
+
     void deleteByBatchId(Long batchId);
 }

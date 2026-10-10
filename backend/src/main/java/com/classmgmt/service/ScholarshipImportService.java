@@ -94,6 +94,7 @@ public class ScholarshipImportService {
         var existing = batchId == null ? List.<Long>of()
                 : scholarshipAwardRepository.findByBatchIdOrderByCreatedAtAscIdAsc(batchId).stream()
                         .map(a -> a.getStudentId()).collect(java.util.stream.Collectors.toSet());
+        java.util.Set<Long> seenInFile = new java.util.HashSet<>();
 
         for (int r = mapping.headerRow + 1; r < grid.size(); r++) {
             List<String> row = grid.get(r);
@@ -150,7 +151,14 @@ public class ScholarshipImportService {
             item.put("studentId", student.getId());
             item.put("studentName", student.getName());
             item.put("studentStudentNo", student.getStudentNo());
-            item.put("duplicate", existing.contains(student.getId()));
+            boolean dupInBatch = existing.contains(student.getId());
+            boolean dupInFile = !seenInFile.add(student.getId());
+            item.put("duplicate", dupInBatch || dupInFile);
+            if (dupInFile) {
+                item.put("duplicateReason", "file");
+            } else if (dupInBatch) {
+                item.put("duplicateReason", "batch");
+            }
             matched.add(item);
         }
 

@@ -171,7 +171,29 @@ class ScholarshipImportServiceTest {
         });
 
         Map<String, Object> result = service().parse(9L, file, null, null, null, null, null);
-        assertTrue((Boolean) matchedRow(result, "绳涵戈").get("duplicate"), "批次内已有记录应标记 duplicate");
+        Map<String, Object> first = matchedRow(result, "绳涵戈");
+        assertTrue((Boolean) first.get("duplicate"), "批次内已有记录应标记 duplicate");
+        assertEquals("batch", first.get("duplicateReason"));
+    }
+
+    @Test
+    void sameStudentTwiceInSameFileSecondMarkedDuplicate() {
+        when(studentRepository.findAll()).thenReturn(roster());
+        MockMultipartFile file = excel(new String[][]{
+                {"姓名", "学号", "奖学金名称"},
+                {"绳涵戈", "2112616151", "一等"},
+                {"绳涵戈", "2112616151", "二等"}
+        });
+
+        Map<String, Object> result = service().parse(null, file, null, null, null, null, null);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> matched = (List<Map<String, Object>>) result.get("matched");
+
+        assertEquals(2, matched.size());
+        assertFalse((Boolean) matched.get(0).get("duplicate"), "首次出现不算重复");
+        assertTrue((Boolean) matched.get(1).get("duplicate"), "同文件第二次出现应标记重复");
+        assertEquals("file", matched.get(1).get("duplicateReason"));
+        assertNull(matched.get(0).get("duplicateReason"));
     }
 
     @Test

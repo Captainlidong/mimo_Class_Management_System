@@ -211,10 +211,18 @@ public class ScholarshipService {
         List<Map<String, Object>> created = new ArrayList<>();
         Object rowsObj = body.get("rows");
         if (rowsObj instanceof List<?> rows && !rows.isEmpty()) {
+            // 批量导入：批次内已存在或本次列表里重复的同学自动跳过，不中断整批导入
+            java.util.Set<Long> seen = new java.util.HashSet<>();
             for (Object o : rows) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> row = (Map<String, Object>) o;
+                Long sid = studentIdOf(row);
+                if (sid == null || seen.contains(sid)
+                        || awardRepository.existsByBatchIdAndStudentId(batch.getId(), sid)) {
+                    continue;
+                }
                 created.add(insertAward(batch.getId(), row, sourceFile));
+                seen.add(sid);
             }
         } else {
             created.add(insertAward(batch.getId(), body, sourceFile));
@@ -223,9 +231,14 @@ public class ScholarshipService {
     }
 
     private Map<String, Object> insertAward(Long batchId, Map<String, Object> row, String sourceFile) {
-        Long studentId = row.get("studentId") == null ? null : Long.valueOf(String.valueOf(row.get("studentId")));
+        Long studentId = studentIdOf(row);
         if (studentId == null || !studentRepository.existsById(studentId)) {
             throw GlobalExceptionHandler.badRequest("学生不存在或不在基准名单中");
+        }
+        // 同一批次内一位同学只能有一条获奖记录
+        if (awardRepository.existsByBatchIdAndStudentId(batchId, studentId)) {
+            String name = studentRepository.findById(studentId).map(Student::getName).orElse("该同学");
+            throw GlobalExceptionHandler.conflict("「" + name + "」已在本批次的获奖记录中，不能重复添加");
         }
         ScholarshipAward a = new ScholarshipAward();
         a.setBatchId(batchId);
@@ -307,6 +320,18 @@ public class ScholarshipService {
         }
         String v = String.valueOf(value).trim();
         return v.isEmpty() ? null : v;
+    }
+
+    private Long studentIdOf(Map<String, Object> row) {
+        Object raw = row.get("studentId");
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(String.valueOf(raw).trim());
+        } catch (NumberFormatException e) {
+            throw GlobalExceptionHandler.badRequest("学生编号格式不正确：" + raw);
+        }
     }
 
     private ScholarshipBatch findBatch(Long id) {
