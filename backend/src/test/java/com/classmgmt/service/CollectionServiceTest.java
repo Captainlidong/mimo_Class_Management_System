@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,12 +66,12 @@ class CollectionServiceTest {
         CollectionTask task = new CollectionTask();
         task.setId(9L);
         task.setName("培养计划");
-        when(taskRepository.findById(9L)).thenReturn(Optional.of(task));
-        when(entryRepository.findByTaskId(9L)).thenReturn(List.of(
+        lenient().when(taskRepository.findById(9L)).thenReturn(Optional.of(task));
+        lenient().when(entryRepository.findByTaskId(9L)).thenReturn(List.of(
                 entry(100L, 1L, true), entry(101L, 2L, false), entry(102L, 3L, false)));
-        when(studentRepository.findById(1L)).thenReturn(Optional.of(student(1L, "张三", "2112616103")));
-        when(studentRepository.findById(2L)).thenReturn(Optional.of(student(2L, "李四", "2112616120")));
-        when(studentRepository.findById(3L)).thenReturn(Optional.of(student(3L, "王五", "2112616155")));
+        lenient().when(studentRepository.findById(1L)).thenReturn(Optional.of(student(1L, "张三", "2112616103")));
+        lenient().when(studentRepository.findById(2L)).thenReturn(Optional.of(student(2L, "李四", "2112616120")));
+        lenient().when(studentRepository.findById(3L)).thenReturn(Optional.of(student(3L, "王五", "2112616155")));
         return task;
     }
 
@@ -183,5 +184,51 @@ class CollectionServiceTest {
 
         assertTrue((Boolean) result.get("submitted"));
         assertNotNull(e.getSubmittedAt());
+    }
+
+    @Test
+    void addStudentsSkipsExistingAndDedupesPayload() {
+        stubTask();
+        when(studentRepository.findAll()).thenReturn(List.of(
+                student(1L, "张三", "2112616103"),
+                student(2L, "李四", "2112616120"),
+                student(3L, "王五", "2112616155")));
+        when(entryRepository.existsByTaskIdAndStudentId(9L, 1L)).thenReturn(true);
+        when(entryRepository.existsByTaskIdAndStudentId(9L, 2L)).thenReturn(false);
+        when(entryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Map<String, Object> result = service.addStudents(9L, Map.of("studentIds", List.of(1L, 2L, 1L)));
+
+        assertEquals(1, result.get("added"));
+        assertEquals(1, result.get("skipped"), "已在名单的 1 跳过 + 载荷里重复的 1 跳过");
+        ArgumentCaptor<CollectionEntry> captor = ArgumentCaptor.forClass(CollectionEntry.class);
+        verify(entryRepository).save(captor.capture());
+        assertEquals(2L, captor.getValue().getStudentId());
+    }
+
+    @Test
+    void addStudentsRejectsUnknownStudent() {
+        stubTask();
+        when(studentRepository.findAll()).thenReturn(List.of(
+                student(2L, "李四", "2112616120")));
+        when(entryRepository.existsByTaskIdAndStudentId(9L, 2L)).thenReturn(false);
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> service.addStudents(9L, Map.of("studentIds", List.of(2L, 999L))));
+        assertEquals(400, ex.getCode());
+    }
+
+    @Test
+    void removeStudentDeletesEntry() {
+        stubTask();
+        CollectionEntry e = entry(100L, 1L, true);
+        when(entryRepository.findByTaskIdAndStudentId(9L, 1L)).thenReturn(Optional.of(e));
+
+        service.removeStudent(9L, 1L);
+        verify(entryRepository).delete(e);
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> service.removeStudent(9L, 999L));
+        assertEquals(404, ex.getCode());
     }
 }

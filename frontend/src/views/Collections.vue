@@ -54,6 +54,7 @@
         </span>
         <div style="flex: 1"></div>
         <el-button type="primary" @click="openMark">📋 粘贴名单标记</el-button>
+        <el-button @click="openAddStudents">＋ 添加人员</el-button>
         <el-button type="success" @click="copyUndelivered">复制未交名单</el-button>
         <el-button @click="exportTask('all')">导出全部</el-button>
         <el-button type="warning" plain @click="exportTask('undelivered')">导出未交</el-button>
@@ -89,6 +90,11 @@
         </el-table-column>
         <el-table-column label="提交时间" min-width="160">
           <template #default="{ row }">{{ row.submittedAt ? formatTime(row.submittedAt) : '—' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="90">
+          <template #default="{ row }">
+            <el-button link type="danger" @click="removeRow(row)">移除</el-button>
+          </template>
         </el-table-column>
       </el-table>
     </template>
@@ -143,6 +149,26 @@
       </template>
     </el-dialog>
 
+    <!-- 添加人员 -->
+    <el-dialog v-model="addStudentsVisible" title="添加人员" width="560px" append-to-body>
+      <el-form label-width="90px">
+        <el-form-item label="添加同学">
+          <div style="width: 100%">
+            <div style="margin-bottom: 6px">
+              <span class="muted">只显示还没在该任务名单里的同学，共 {{ availableStudents.length }} 人；新人员默认为未交。</span>
+            </div>
+            <el-select v-model="addStudentIds" multiple filterable placeholder="搜索或选择要补充的同学" style="width: 100%">
+              <el-option v-for="s in availableStudents" :key="s.id" :label="`${s.name}（${s.studentNo || '无学号'}）`" :value="s.id" />
+            </el-select>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addStudentsVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveAddStudents">添加</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 粘贴名单批量标记 -->
     <el-dialog v-model="markVisible" title="粘贴名单批量标记已交" width="560px" append-to-body>
       <p class="muted" style="margin-top: 0">
@@ -185,6 +211,14 @@ const editForm = reactive({ id: null, name: '', remark: '', deadline: null })
 const markVisible = ref(false)
 const markText = ref('')
 const markResult = ref(null)
+const addStudentsVisible = ref(false)
+const addStudentIds = ref([])
+
+// 添加人员时只显示还没在该任务名单里的同学
+const availableStudents = computed(() => {
+  const used = new Set(entries.value.map((e) => e.studentId))
+  return students.value.filter((s) => !used.has(s.id))
+})
 
 const receivedCount = computed(() => entries.value.filter((e) => e.submitted).length)
 const filteredEntries = computed(() =>
@@ -311,6 +345,40 @@ function openMark() {
   markVisible.value = true
 }
 
+function openAddStudents() {
+  addStudentIds.value = []
+  loadStudents().then(() => {
+    addStudentsVisible.value = true
+  })
+}
+
+async function saveAddStudents() {
+  if (!addStudentIds.value.length) {
+    ElMessage.warning('请选择要添加的同学')
+    return
+  }
+  const { data } = await api.post(`/collections/tasks/${currentTask.value.id}/students`, {
+    studentIds: addStudentIds.value
+  })
+  addStudentsVisible.value = false
+  const r = data.data
+  ElMessage.success(`已添加 ${r.added} 人${r.skipped ? `，跳过已在名单的 ${r.skipped} 人` : ''}`)
+  await openTask(currentTask.value)
+  await load()
+}
+
+async function removeRow(row) {
+  await ElMessageBox.confirm(
+    `从任务名单移除 ${row.name}？其交表记录会一并删除。`,
+    '移除人员',
+    { type: 'warning' }
+  )
+  await api.delete(`/collections/tasks/${currentTask.value.id}/students/${row.studentId}`)
+  ElMessage.success('已移除')
+  await openTask(currentTask.value)
+  await load()
+}
+
 async function markBatch() {
   if (!markText.value.trim()) {
     ElMessage.warning('请先粘贴名单')
@@ -363,6 +431,7 @@ onDeactivated(() => {
   createVisible.value = false
   editVisible.value = false
   markVisible.value = false
+  addStudentsVisible.value = false
 })
 </script>
 

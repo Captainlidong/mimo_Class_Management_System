@@ -270,6 +270,57 @@ public class CollectionService {
         }
     }
 
+    /** 向已有任务补充人员：新人员默认未交；已在任务里的自动跳过。返回 {added, skipped}。 */
+    @Transactional
+    public Map<String, Object> addStudents(Long taskId, Map<String, Object> body) {
+        findTask(taskId);
+        if (!(body.get("studentIds") instanceof List<?> ids) || ids.isEmpty()) {
+            throw GlobalExceptionHandler.badRequest("请选择要添加的同学");
+        }
+        Map<Long, Student> rosterMap = new LinkedHashMap<>();
+        for (Student s : studentRepository.findAll()) {
+            rosterMap.put(s.getId(), s);
+        }
+        int added = 0;
+        int skipped = 0;
+        Set<Long> seen = new LinkedHashSet<>();
+        for (Object o : ids) {
+            Long sid;
+            try {
+                sid = Long.valueOf(String.valueOf(o).trim());
+            } catch (NumberFormatException e) {
+                throw GlobalExceptionHandler.badRequest("学生编号格式不正确：" + o);
+            }
+            if (!seen.add(sid)) {
+                continue;
+            }
+            if (!rosterMap.containsKey(sid)) {
+                throw GlobalExceptionHandler.badRequest("学生不存在或不在基准名单中：" + sid);
+            }
+            if (entryRepository.existsByTaskIdAndStudentId(taskId, sid)) {
+                skipped++;
+                continue;
+            }
+            CollectionEntry e = new CollectionEntry();
+            e.setTaskId(taskId);
+            e.setStudentId(sid);
+            entryRepository.save(e);
+            added++;
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("added", added);
+        result.put("skipped", skipped);
+        return result;
+    }
+
+    /** 从任务名单中移除一位同学（连同其交表记录）。 */
+    @Transactional
+    public void removeStudent(Long taskId, Long studentId) {
+        CollectionEntry e = entryRepository.findByTaskIdAndStudentId(taskId, studentId)
+                .orElseThrow(() -> GlobalExceptionHandler.notFound("该同学不在此任务的名单中"));
+        entryRepository.delete(e);
+    }
+
     // —— 工具 ——
 
     private Instant parseTime(String value, String field) {

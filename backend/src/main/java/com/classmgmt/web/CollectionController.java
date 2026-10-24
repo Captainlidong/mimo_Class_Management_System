@@ -54,6 +54,20 @@ public class CollectionController {
         return ApiResponse.ok(collectionService.setEntrySubmitted(id, body));
     }
 
+    /** 向已有任务补充人员，body = {studentIds: []}；新人员默认未交，已在名单的自动跳过。 */
+    @PostMapping("/tasks/{id}/students")
+    public ApiResponse<Map<String, Object>> addStudents(@PathVariable Long id,
+                                                        @RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(collectionService.addStudents(id, body));
+    }
+
+    /** 从任务名单移除一位同学。 */
+    @DeleteMapping("/tasks/{id}/students/{studentId}")
+    public ApiResponse<Void> removeStudent(@PathVariable Long id, @PathVariable Long studentId) {
+        collectionService.removeStudent(id, studentId);
+        return ApiResponse.ok(null);
+    }
+
     /** 粘贴名单批量标记，body = {text: "张三，李四", submitted: true}。 */
     @PostMapping("/tasks/{id}/mark")
     public ApiResponse<Map<String, Object>> markByText(@PathVariable Long id,
