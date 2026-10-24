@@ -58,6 +58,19 @@ public final class NameNormalizer {
         return set;
     }
 
+    /** 学号后两位数字，用于名单排序；无学号或无数字时返回 Integer.MAX_VALUE（排最后）。 */
+    public static int trailingDigits(String studentNo) {
+        if (studentNo == null) {
+            return Integer.MAX_VALUE;
+        }
+        String digits = toHalfWidth(studentNo).replaceAll("\\D", "");
+        if (digits.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        String last2 = digits.length() <= 2 ? digits : digits.substring(digits.length() - 2);
+        return Integer.parseInt(last2);
+    }
+
     private static String toHalfWidth(String input) {
         StringBuilder sb = new StringBuilder(input.length());
         for (int i = 0; i < input.length(); i++) {

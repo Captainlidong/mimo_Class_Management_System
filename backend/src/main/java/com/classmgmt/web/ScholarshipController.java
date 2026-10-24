@@ -105,6 +105,12 @@ public class ScholarshipController {
         return ApiResponse.ok(scholarshipService.addAward(id, body, sourceFile));
     }
 
+    /** 一键把收表用的奖学金批次转为资料收集任务（名单与交表状态平移，原批次保留）。 */
+    @PostMapping("/batches/{id}/convert-to-collection")
+    public ApiResponse<Map<String, Object>> convertToCollection(@PathVariable Long id) {
+        return ApiResponse.ok(scholarshipService.convertToCollection(id));
+    }
+
     // —— 导出 ——
 
     @GetMapping("/batches/{id}/export")

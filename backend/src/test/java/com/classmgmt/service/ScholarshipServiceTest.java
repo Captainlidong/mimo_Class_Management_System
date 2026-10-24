@@ -35,12 +35,14 @@ class ScholarshipServiceTest {
     private ScholarshipAwardRepository awardRepository;
     @Mock
     private StudentRepository studentRepository;
+    @Mock
+    private CollectionService collectionService;
 
     private ScholarshipService service;
 
     @BeforeEach
     void setUp() {
-        service = new ScholarshipService(batchRepository, awardRepository, studentRepository);
+        service = new ScholarshipService(batchRepository, awardRepository, studentRepository, collectionService);
     }
 
     private Student student(long id, String name, String no) {

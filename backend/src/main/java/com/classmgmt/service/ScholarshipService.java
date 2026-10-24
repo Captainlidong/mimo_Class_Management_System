@@ -24,13 +24,16 @@ public class ScholarshipService {
     private final ScholarshipBatchRepository batchRepository;
     private final ScholarshipAwardRepository awardRepository;
     private final StudentRepository studentRepository;
+    private final CollectionService collectionService;
 
     public ScholarshipService(ScholarshipBatchRepository batchRepository,
                               ScholarshipAwardRepository awardRepository,
-                              StudentRepository studentRepository) {
+                              StudentRepository studentRepository,
+                              CollectionService collectionService) {
         this.batchRepository = batchRepository;
         this.awardRepository = awardRepository;
         this.studentRepository = studentRepository;
+        this.collectionService = collectionService;
     }
 
     // —— 批次 ——
@@ -144,22 +147,9 @@ public class ScholarshipService {
         }
         // 按学号后两位升序排列（无学号的排最后；后两位相同时按完整学号排）
         rows.sort(Comparator
-                .comparingInt((Map<String, Object> r) -> trailingTwoDigits((String) r.get("studentNo")))
+                .comparingInt((Map<String, Object> r) -> NameNormalizer.trailingDigits((String) r.get("studentNo")))
                 .thenComparing(r -> String.valueOf(r.get("studentNo") == null ? "" : r.get("studentNo"))));
         return rows;
-    }
-
-    /** 学号后两位数字，用于排序；无学号或学号里没有数字时排到最后。 */
-    private int trailingTwoDigits(String studentNo) {
-        if (studentNo == null) {
-            return Integer.MAX_VALUE;
-        }
-        String digits = studentNo.replaceAll("\\D", "");
-        if (digits.isEmpty()) {
-            return Integer.MAX_VALUE;
-        }
-        String last2 = digits.length() <= 2 ? digits : digits.substring(digits.length() - 2);
-        return Integer.parseInt(last2);
     }
 
     @Transactional(readOnly = true)
@@ -295,6 +285,33 @@ public class ScholarshipService {
     }
 
     // —— 工具 ——
+
+    /** 把收表用的奖学金批次一键转为资料收集任务（名单与交表状态平移，原批次保留）。 */
+    @Transactional
+    public Map<String, Object> convertToCollection(Long batchId) {
+        ScholarshipBatch batch = findBatch(batchId);
+        List<ScholarshipAward> awards = awardRepository.findByBatchIdOrderByCreatedAtAscIdAsc(batchId);
+        if (awards.isEmpty()) {
+            throw GlobalExceptionHandler.badRequest("该批次没有获奖记录，无需转换");
+        }
+        Map<String, Object> createBody = new LinkedHashMap<>();
+        createBody.put("name", batch.getName());
+        createBody.put("remark", "由奖学金批次「" + batch.getName() + "」迁移"
+                + (batch.getRemark() == null || batch.getRemark().isBlank() ? "" : "；" + batch.getRemark()));
+        createBody.put("studentIds", awards.stream().map(ScholarshipAward::getStudentId).toList());
+        Map<String, Object> task = collectionService.createTask(createBody);
+        Long taskId = (Long) task.get("id");
+        for (ScholarshipAward a : awards) {
+            if (Boolean.TRUE.equals(a.getFormReceived())) {
+                collectionService.setSubmittedByStudent(taskId, a.getStudentId(), true);
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("taskId", taskId);
+        result.put("name", task.get("name"));
+        result.put("total", awards.size());
+        return result;
+    }
 
     public BigDecimal parseAmountValue(Object raw) {
         if (raw == null) {

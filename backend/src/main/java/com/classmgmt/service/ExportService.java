@@ -28,12 +28,14 @@ public class ExportService {
     private final HistoryService historyService;
     private final LeaveService leaveService;
     private final ScholarshipService scholarshipService;
+    private final CollectionService collectionService;
 
     public ExportService(HistoryService historyService, LeaveService leaveService,
-                         ScholarshipService scholarshipService) {
+                         ScholarshipService scholarshipService, CollectionService collectionService) {
         this.historyService = historyService;
         this.leaveService = leaveService;
         this.scholarshipService = scholarshipService;
+        this.collectionService = collectionService;
     }
 
     public ResponseEntity<byte[]> exportRecord(Long id, String format) {
@@ -232,6 +234,104 @@ public class ExportService {
                 received ? "已交表" : "未交表",
                 leaveService.display((java.time.Instant) row.get("receivedAt")),
                 row.get("remark") == null ? "" : String.valueOf(row.get("remark")));
+    }
+
+    private static final List<String> COLLECTION_COLUMNS = List.of(
+            "序号", "姓名", "学号", "提交状态", "提交时间");
+
+    public ResponseEntity<byte[]> exportCollection(Long taskId, String format, String scope) {
+        Map<String, Object> task = collectionService.getTask(taskId);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) task.get("entries");
+        List<Map<String, Object>> filtered = switch (scope == null ? "all" : scope) {
+            case "undelivered" -> entries.stream()
+                    .filter(e -> !Boolean.TRUE.equals(e.get("submitted"))).toList();
+            case "submitted" -> entries.stream()
+                    .filter(e -> Boolean.TRUE.equals(e.get("submitted"))).toList();
+            default -> entries;
+        };
+        String base = sanitizeFileName(String.valueOf(task.get("name")))
+                + ("undelivered".equals(scope) ? "_未交名单" : "._提交情况");
+        return switch (format) {
+            case "xlsx", "excel" -> collectionXlsx(task, filtered, base);
+            case "csv" -> collectionCsv(task, filtered, base);
+            default -> throw GlobalExceptionHandler.badRequest("不支持的导出格式：" + format);
+        };
+    }
+
+    private ResponseEntity<byte[]> collectionXlsx(Map<String, Object> task,
+                                                  List<Map<String, Object>> entries, String base) {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("提交情况");
+            CellStyle header = workbook.createCellStyle();
+            Font font = workbook.createFont();
+            font.setBold(true);
+            header.setFont(font);
+            header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            Row meta = sheet.createRow(0);
+            meta.createCell(0).setCellValue("任务");
+            meta.createCell(1).setCellValue(String.valueOf(task.get("name")));
+            Row counts = sheet.createRow(1);
+            counts.createCell(0).setCellValue("统计");
+            counts.createCell(1).setCellValue("应交 " + task.get("total")
+                    + " / 已交 " + task.get("received"));
+
+            Row head = sheet.createRow(3);
+            for (int i = 0; i < COLLECTION_COLUMNS.size(); i++) {
+                Cell c = head.createCell(i);
+                c.setCellValue(COLLECTION_COLUMNS.get(i));
+                c.setCellStyle(header);
+            }
+            int r = 4;
+            for (Map<String, Object> row : entries) {
+                Row line = sheet.createRow(r++);
+                List<String> cells = collectionCells(row);
+                for (int i = 0; i < cells.size(); i++) {
+                    line.createCell(i).setCellValue(cells.get(i));
+                }
+            }
+            for (int i = 0; i < COLLECTION_COLUMNS.size(); i++) {
+                sheet.autoSizeColumn(i);
+            }
+            workbook.write(out);
+            return file(base + ".xlsx",
+                    MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                    out.toByteArray());
+        } catch (Exception e) {
+            throw new IllegalStateException("导出 Excel 失败：" + e.getMessage(), e);
+        }
+    }
+
+    private ResponseEntity<byte[]> collectionCsv(Map<String, Object> task,
+                                                 List<Map<String, Object>> entries, String base) {
+        StringBuilder sb = new StringBuilder();
+        sb.append('\uFEFF');
+        sb.append("任务,").append(csvEscape(String.valueOf(task.get("name")))).append("\n");
+        sb.append(String.join(",", COLLECTION_COLUMNS)).append("\n");
+        for (Map<String, Object> row : entries) {
+            List<String> cells = collectionCells(row);
+            for (int i = 0; i < cells.size(); i++) {
+                if (i > 0) {
+                    sb.append(",");
+                }
+                sb.append(csvEscape(cells.get(i)));
+            }
+            sb.append("\n");
+        }
+        return file(base + ".csv", MediaType.parseMediaType("text/csv;charset=UTF-8"),
+                sb.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private List<String> collectionCells(Map<String, Object> row) {
+        boolean submitted = Boolean.TRUE.equals(row.get("submitted"));
+        return List.of(
+                String.valueOf(row.get("studentId")),
+                String.valueOf(row.get("name")),
+                row.get("studentNo") == null ? "" : String.valueOf(row.get("studentNo")),
+                submitted ? "已交" : "未交",
+                leaveService.display((java.time.Instant) row.get("submittedAt")));
     }
 
     private ResponseEntity<byte[]> xlsx(CheckResultDTO dto, String base) {

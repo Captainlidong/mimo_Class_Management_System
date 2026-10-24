@@ -57,6 +57,7 @@
         <el-button @click="goBack">← 返回</el-button>
         <h2 class="page-title" style="margin: 0">{{ currentBatch.name }}</h2>
         <div style="flex: 1"></div>
+        <el-button @click="convertToCollection">📥 转为资料收集任务</el-button>
         <el-button type="primary" @click="uploadVisible = true">📤 上传名单识别</el-button>
         <el-button @click="openManualAdd">＋ 手动添加</el-button>
         <el-button type="success" @click="copyUndelivered">📋 复制未交名单</el-button>
@@ -627,6 +628,17 @@ async function removeAward(row) {
 }
 
 // —— 复制 / 导出 ——
+
+async function convertToCollection() {
+  await ElMessageBox.confirm(
+    `把批次「${currentBatch.value.name}」转为资料收集任务？名单和交表状态会平移过去，本批次保留不动。`,
+    '转为资料收集任务',
+    { type: 'info', confirmButtonText: '转换' }
+  )
+  const { data } = await api.post(`/scholarships/batches/${currentBatch.value.id}/convert-to-collection`)
+  ElMessage.success(`已创建资料收集任务「${data.data.name}」，去「资料收集」页查看`)
+  await load()
+}
 
 async function copyUndelivered() {
   const names = awards.value.filter((a) => !a.formReceived).map((a) => a.name)
