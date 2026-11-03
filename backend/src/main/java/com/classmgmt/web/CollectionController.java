@@ -47,11 +47,11 @@ public class CollectionController {
         return ApiResponse.ok(collectionService.getTask(id));
     }
 
-    /** 点击状态标签切换交表状态，body = {submitted: true/false}。 */
+    /** 更新条目：body = {submitted: true/false} 切换状态，或 {remark: "..."} 更新备注（可同时传）。 */
     @PatchMapping("/entries/{id}")
-    public ApiResponse<Map<String, Object>> setSubmitted(@PathVariable Long id,
-                                                         @RequestBody(required = false) Map<String, Object> body) {
-        return ApiResponse.ok(collectionService.setEntrySubmitted(id, body));
+    public ApiResponse<Map<String, Object>> updateEntry(@PathVariable Long id,
+                                                        @RequestBody(required = false) Map<String, Object> body) {
+        return ApiResponse.ok(collectionService.updateEntry(id, body));
     }
 
     /** 向已有任务补充人员，body = {studentIds: []}；新人员默认未交，已在名单的自动跳过。 */

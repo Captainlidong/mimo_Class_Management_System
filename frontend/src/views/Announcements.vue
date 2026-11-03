@@ -297,10 +297,9 @@ async function uploadAttachFiles(fileList) {
   for (const f of fileList) {
     fd.append('files', f)
   }
-  const password = localStorage.getItem('accessPassword') || ''
   try {
     const { data } = await api.post(`/announcements/${form.id}/files`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data', ...(password ? { 'X-Access-Password': password } : {}) }
+      headers: { 'Content-Type': 'multipart/form-data' }
     })
     form.files = data.data.files || []
     ElMessage.success(fileList.length > 1 ? `已上传 ${fileList.length} 个附件 📎` : '附件已上传 📎')
@@ -319,11 +318,9 @@ async function removeFile(f) {
 }
 
 function downloadFile(f) {
-  const password = localStorage.getItem('accessPassword') || ''
   api
     .get(`/announcements/${form.id}/files/${f.id}`, {
-      responseType: 'blob',
-      headers: password ? { 'X-Access-Password': password } : {}
+      responseType: 'blob'
     })
     .then((res) => {
       const blob = new Blob([res.data])

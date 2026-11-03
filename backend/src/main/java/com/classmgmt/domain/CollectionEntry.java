@@ -25,6 +25,10 @@ public class CollectionEntry {
     @Column(name = "submitted_at")
     private Instant submittedAt;
 
+    /** 行级备注：如"少交1份""1份未盖章"等。 */
+    @Column(length = 512)
+    private String remark;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -73,6 +77,14 @@ public class CollectionEntry {
 
     public void setSubmittedAt(Instant submittedAt) {
         this.submittedAt = submittedAt;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
     }
 
     public Instant getCreatedAt() {

@@ -70,13 +70,20 @@
         <div class="stat-item" style="background:#fff7ed"><div class="label">未交表</div><div class="value">{{ awards.length - receivedCount }}</div></div>
         <div class="stat-item" style="background:#fefce8"><div class="label">金额合计</div><div class="value">{{ amountSum ? amountSum + ' 元' : '—' }}</div></div>
       </div>
-      <div v-if="currentBatch.levels && currentBatch.levels.length" style="margin-bottom: 12px">
-        <el-tag
-          v-for="lv in currentBatch.levels"
-          :key="lv.name"
-          effect="plain"
-          style="margin: 0 8px 6px 0"
-        >{{ lv.name }} ×{{ lv.count }}</el-tag>
+      <div class="chart-row">
+        <div class="chart-box">
+          <div class="chart-title">🏅 等级分布</div>
+          <DonutChart :items="levelDonutItems" :height="220" />
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">📋 收表进度</div>
+          <DonutChart
+            :items="receivedDonutItems"
+            :center-value="receivedPct"
+            :center-label="`已交表 ${receivedCount} / ${awards.length}`"
+            :height="220"
+          />
+        </div>
       </div>
 
       <el-table :data="awards" border stripe>
@@ -327,6 +334,7 @@
 import { computed, onDeactivated, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api/client'
+import DonutChart from '../components/DonutChart.vue'
 
 const batches = ref([])
 const currentBatch = ref(null)
@@ -355,6 +363,24 @@ const receivedCount = computed(() => awards.value.filter((a) => a.formReceived).
 const amountSum = computed(() => {
   const sum = awards.value.reduce((acc, a) => acc + (a.amount != null ? Number(a.amount) : 0), 0)
   return sum > 0 ? Math.round(sum * 100) / 100 : 0
+})
+
+// 批次详情可视化：等级分布 / 收表进度环形图
+const CHART_COLORS = ['#ff6b9d', '#5eead4', '#c4b5fd', '#fdba74', '#7dd3fc', '#f43f7a']
+const levelDonutItems = computed(() =>
+  (currentBatch.value && currentBatch.value.levels ? currentBatch.value.levels : []).map((lv, i) => ({
+    name: lv.name,
+    value: lv.count,
+    color: CHART_COLORS[i % CHART_COLORS.length]
+  }))
+)
+const receivedDonutItems = computed(() => [
+  { name: '已交表', value: receivedCount.value, color: '#5eead4' },
+  { name: '未交表', value: awards.value.length - receivedCount.value, color: '#fdba74' }
+])
+const receivedPct = computed(() => {
+  if (!awards.value.length) return '—'
+  return Math.round((receivedCount.value / awards.value.length) * 100) + '%'
 })
 const checkedCount = computed(() => previewRows.value.filter((r) => r.checked).length)
 // 手动添加时过滤掉本批次已添加过的同学
@@ -474,12 +500,11 @@ async function parseFile(file) {
   if (!currentBatch.value) return
   const fd = new FormData()
   fd.append('file', file)
-  const password = localStorage.getItem('accessPassword') || ''
   try {
     const { data } = await api.post(
       `/scholarships/batches/${currentBatch.value.id}/import/parse`,
       fd,
-      { headers: { 'Content-Type': 'multipart/form-data', ...(password ? { 'X-Access-Password': password } : {}) }, timeout: 60000 }
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 }
     )
     parseResult.value = data.data
     if (!data.data.recognized) {
@@ -520,12 +545,11 @@ async function reparseWithMapping() {
   fd.append('studentNoCol', String(manualMap.studentNoCol))
   fd.append('levelCol', String(manualMap.levelCol))
   fd.append('amountCol', String(manualMap.amountCol))
-  const password = localStorage.getItem('accessPassword') || ''
   try {
     const { data } = await api.post(
       `/scholarships/batches/${currentBatch.value.id}/import/parse`,
       fd,
-      { headers: { 'Content-Type': 'multipart/form-data', ...(password ? { 'X-Access-Password': password } : {}) }, timeout: 60000 }
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60000 }
     )
     parseResult.value = data.data
     if (!data.data.recognized) {
@@ -636,7 +660,7 @@ async function convertToCollection() {
     { type: 'info', confirmButtonText: '转换' }
   )
   const { data } = await api.post(`/scholarships/batches/${currentBatch.value.id}/convert-to-collection`)
-  ElMessage.success(`已创建资料收集任务「${data.data.name}」，去「资料收集」页查看`)
+  ElMessage.success(`已创建资料收集任务「${data.data.name}」，去「资料收集与分发」页查看`)
   await load()
 }
 
@@ -656,11 +680,9 @@ async function copyUndelivered() {
 }
 
 function exportBatch(format) {
-  const password = localStorage.getItem('accessPassword') || ''
   api
     .get(`/scholarships/batches/${currentBatch.value.id}/export?format=${format}`, {
-      responseType: 'blob',
-      headers: password ? { 'X-Access-Password': password } : {}
+      responseType: 'blob'
     })
     .then((res) => {
       const blob = new Blob([res.data])
@@ -686,6 +708,29 @@ onDeactivated(() => {
 </script>
 
 <style scoped>
+.chart-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.chart-box {
+  flex: 1;
+  min-width: 280px;
+  border: 1px solid #ffe4ec;
+  border-radius: 16px;
+  padding: 10px 12px;
+  background: #fffdfa;
+}
+
+.chart-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--c-ink);
+  margin: 2px 0 0 4px;
+}
+
 .attach-drop {
   min-height: 88px;
   display: flex;

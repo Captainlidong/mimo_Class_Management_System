@@ -3,10 +3,13 @@ package com.classmgmt.domain;
 import jakarta.persistence.*;
 import java.time.Instant;
 
-/** 资料收集任务：收培养计划、问卷、表格等一次提交活动。 */
+/** 资料收集/分发任务：收培养计划、问卷、表格，或发通知附件、盖章材料等一次活动。 */
 @Entity
 @Table(name = "collection_task")
 public class CollectionTask {
+
+    public static final String KIND_COLLECT = "collect";
+    public static final String KIND_DISTRIBUTE = "distribute";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -14,6 +17,10 @@ public class CollectionTask {
 
     @Column(nullable = false, length = 128)
     private String name;
+
+    /** 任务类型：collect=收集材料（默认），distribute=分发材料。 */
+    @Column(name = "kind", length = 16)
+    private String kind;
 
     @Column(length = 512)
     private String remark;
@@ -45,6 +52,15 @@ public class CollectionTask {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    /** 归一化：历史数据该列为 null，一律按收集处理。 */
+    public String getKind() {
+        return kind == null || kind.isBlank() ? KIND_COLLECT : kind;
+    }
+
+    public void setKind(String kind) {
+        this.kind = KIND_DISTRIBUTE.equals(kind) ? KIND_DISTRIBUTE : KIND_COLLECT;
     }
 
     public String getRemark() {

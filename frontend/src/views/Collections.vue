@@ -3,14 +3,21 @@
     <!-- ============ 任务列表视图 ============ -->
     <template v-if="!currentTask">
       <div class="toolbar">
-        <h2 class="page-title" style="margin: 0">📥 资料收集</h2>
+        <h2 class="page-title" style="margin: 0">📥 资料收集与分发</h2>
         <div style="flex: 1"></div>
-        <el-button type="primary" @click="openCreate">新建收集任务</el-button>
+        <el-button type="primary" @click="openCreate">新建任务</el-button>
       </div>
       <p class="muted">
-        收培养计划、问卷、各类表格：建任务自动生成名单（初始全部未交），点一下标记已交，随时复制/导出未交名单催交。
+        收材料（培养计划、问卷、各类表格）或发材料（通知附件、盖章资料）都在这里：建任务自动生成名单（初始全部未完成），点一下标记状态，随时复制/导出未完成名单催办。
       </p>
       <el-table :data="tasks" border stripe>
+        <el-table-column label="类型" width="96">
+          <template #default="{ row }">
+            <el-tag :type="row.kind === 'distribute' ? 'warning' : 'success'" size="small">
+              {{ row.kind === 'distribute' ? '📤 分发' : '📥 收集' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="任务名称" min-width="180">
           <template #default="{ row }"><span style="font-weight: 600">{{ row.name }}</span></template>
         </el-table-column>
@@ -23,10 +30,10 @@
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="提交进度" width="130">
+        <el-table-column label="进度" width="130">
           <template #default="{ row }">
             <span v-if="row.total" :style="{ color: row.received >= row.total ? '#059669' : '#b45309', fontWeight: 600 }">
-              已交 {{ row.received }} / {{ row.total }}
+              {{ row.kind === 'distribute' ? '已领' : '已交' }} {{ row.received }} / {{ row.total }}
             </span>
             <span v-else class="muted">—</span>
           </template>
@@ -55,20 +62,28 @@
         <div style="flex: 1"></div>
         <el-button type="primary" @click="openMark">📋 粘贴名单标记</el-button>
         <el-button @click="openAddStudents">＋ 添加人员</el-button>
-        <el-button type="success" @click="copyUndelivered">复制未交名单</el-button>
+        <el-button type="success" @click="copyUndone">{{ kindText.copyBtn }}</el-button>
         <el-button @click="exportTask('all')">导出全部</el-button>
-        <el-button type="warning" plain @click="exportTask('undelivered')">导出未交</el-button>
+        <el-button type="warning" plain @click="exportTask('undelivered')">{{ kindText.exportUndone }}</el-button>
         <el-button @click="openEditTask(currentTask)">编辑任务</el-button>
       </div>
 
       <div class="stat-row">
-        <div class="stat-item"><div class="label">应交人数</div><div class="value">{{ entries.length }}</div></div>
-        <div class="stat-item" style="background:#f0fdf4"><div class="label">已交</div><div class="value">{{ receivedCount }}</div></div>
-        <div class="stat-item" style="background:#fff7ed"><div class="label">未交</div><div class="value">{{ entries.length - receivedCount }}</div></div>
+        <div class="stat-item"><div class="label">{{ kindText.statTotal }}</div><div class="value">{{ entries.length }}</div></div>
+        <div class="stat-item" style="background:#f0fdf4"><div class="label">{{ kindText.done }}</div><div class="value">{{ receivedCount }}</div></div>
+        <div class="stat-item" style="background:#fff7ed"><div class="label">{{ kindText.undone }}</div><div class="value">{{ entries.length - receivedCount }}</div></div>
+        <div class="chart-box">
+          <DonutChart
+            :items="donutItems"
+            :center-value="completionPct"
+            :center-label="`${kindText.done} ${receivedCount} / ${entries.length}`"
+            :height="190"
+          />
+        </div>
       </div>
 
       <div style="margin-bottom: 10px">
-        <el-switch v-model="onlyUndelivered" active-text="只看未交" />
+        <el-switch v-model="onlyUndone" :active-text="kindText.onlyToggle" />
       </div>
 
       <el-table :data="filteredEntries" border stripe>
@@ -78,18 +93,30 @@
         <el-table-column prop="studentNo" label="学号" width="130">
           <template #default="{ row }">{{ row.studentNo || '—' }}</template>
         </el-table-column>
-        <el-table-column label="提交状态" width="110">
+        <el-table-column :label="kindText.statusCol" width="110">
           <template #default="{ row }">
             <el-tag
               :type="row.submitted ? 'success' : 'warning'"
               size="small"
               style="cursor: pointer"
               @click="toggleRow(row)"
-            >{{ row.submitted ? '已交' : '未交' }}</el-tag>
+            >{{ row.submitted ? kindText.done : kindText.undone }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="提交时间" min-width="160">
+        <el-table-column :label="kindText.timeCol" min-width="150">
           <template #default="{ row }">{{ row.submittedAt ? formatTime(row.submittedAt) : '—' }}</template>
+        </el-table-column>
+        <el-table-column label="备注" min-width="200">
+          <template #default="{ row }">
+            <el-input
+              v-model="row.remark"
+              size="small"
+              maxlength="512"
+              :placeholder="remarkPlaceholder"
+              @blur="saveRemark(row)"
+              @keyup.enter="saveRemark(row)"
+            />
+          </template>
         </el-table-column>
         <el-table-column label="操作" width="90">
           <template #default="{ row }">
@@ -100,10 +127,16 @@
     </template>
 
     <!-- 新建任务 -->
-    <el-dialog v-model="createVisible" title="新建收集任务" width="560px" append-to-body :close-on-click-modal="false">
+    <el-dialog v-model="createVisible" title="新建任务" width="560px" append-to-body :close-on-click-modal="false">
       <el-form label-width="90px">
+        <el-form-item label="任务类型">
+          <el-radio-group v-model="createForm.kind">
+            <el-radio-button value="collect">📥 收集材料</el-radio-button>
+            <el-radio-button value="distribute">📤 分发材料</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="任务名称">
-          <el-input v-model="createForm.name" placeholder="如：培养计划提交" maxlength="128" />
+          <el-input v-model="createForm.name" :placeholder="createForm.kind === 'distribute' ? '如：盖章成绩单分发' : '如：培养计划提交'" maxlength="128" />
         </el-form-item>
         <el-form-item label="截止日期">
           <el-date-picker v-model="createForm.deadline" type="datetime" placeholder="可选" style="width: 100%" />
@@ -111,7 +144,7 @@
         <el-form-item label="备注">
           <el-input v-model="createForm.remark" maxlength="512" />
         </el-form-item>
-        <el-form-item label="收集名单">
+        <el-form-item label="名单范围">
           <div style="width: 100%">
             <div style="margin-bottom: 6px">
               <el-button size="small" @click="selectAllStudents">全选</el-button>
@@ -133,6 +166,12 @@
     <!-- 编辑任务 -->
     <el-dialog v-model="editVisible" title="编辑任务" width="520px" append-to-body>
       <el-form label-width="90px">
+        <el-form-item label="任务类型">
+          <el-radio-group v-model="editForm.kind">
+            <el-radio-button value="collect">📥 收集材料</el-radio-button>
+            <el-radio-button value="distribute">📤 分发材料</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="任务名称">
           <el-input v-model="editForm.name" maxlength="128" />
         </el-form-item>
@@ -155,7 +194,7 @@
         <el-form-item label="添加同学">
           <div style="width: 100%">
             <div style="margin-bottom: 6px">
-              <span class="muted">只显示还没在该任务名单里的同学，共 {{ availableStudents.length }} 人；新人员默认为未交。</span>
+              <span class="muted">只显示还没在该任务名单里的同学，共 {{ availableStudents.length }} 人；新人员默认为{{ kindText.undone }}。</span>
             </div>
             <el-select v-model="addStudentIds" multiple filterable placeholder="搜索或选择要补充的同学" style="width: 100%">
               <el-option v-for="s in availableStudents" :key="s.id" :label="`${s.name}（${s.studentNo || '无学号'}）`" :value="s.id" />
@@ -170,9 +209,9 @@
     </el-dialog>
 
     <!-- 粘贴名单批量标记 -->
-    <el-dialog v-model="markVisible" title="粘贴名单批量标记已交" width="560px" append-to-body>
+    <el-dialog v-model="markVisible" :title="kindText.markTitle" width="560px" append-to-body>
       <p class="muted" style="margin-top: 0">
-        把<strong>已交同学</strong>的名单粘贴到下面（一行一个，或用逗号/顿号/空格分隔），系统自动匹配标记。
+        把<strong>{{ kindText.done }}同学</strong>的名单粘贴到下面（一行一个，或用逗号/顿号/空格分隔），系统自动匹配标记。
       </p>
       <el-input v-model="markText" type="textarea" :rows="6" placeholder="例如：&#10;绳涵戈&#10;孟庆成、徐昊&#10;温涛 2112616159" />
       <div v-if="markResult" style="margin-top: 10px">
@@ -197,17 +236,18 @@
 import { computed, onDeactivated, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api/client'
+import DonutChart from '../components/DonutChart.vue'
 
 const tasks = ref([])
 const currentTask = ref(null)
 const entries = ref([])
 const students = ref([])
-const onlyUndelivered = ref(false)
+const onlyUndone = ref(false)
 
 const createVisible = ref(false)
-const createForm = reactive({ name: '', remark: '', deadline: null, studentIds: [] })
+const createForm = reactive({ kind: 'collect', name: '', remark: '', deadline: null, studentIds: [] })
 const editVisible = ref(false)
-const editForm = reactive({ id: null, name: '', remark: '', deadline: null })
+const editForm = reactive({ id: null, kind: 'collect', name: '', remark: '', deadline: null })
 const markVisible = ref(false)
 const markText = ref('')
 const markResult = ref(null)
@@ -222,8 +262,60 @@ const availableStudents = computed(() => {
 
 const receivedCount = computed(() => entries.value.filter((e) => e.submitted).length)
 const filteredEntries = computed(() =>
-  onlyUndelivered.value ? entries.value.filter((e) => !e.submitted) : entries.value
+  onlyUndone.value ? entries.value.filter((e) => !e.submitted) : entries.value
 )
+
+// 详情页文案随任务类型（收集/分发）切换
+const kindText = computed(() => {
+  const distribute = !!(currentTask.value && currentTask.value.kind === 'distribute')
+  return distribute
+    ? {
+        statTotal: '应发人数',
+        done: '已领',
+        undone: '未领',
+        statusCol: '领取状态',
+        timeCol: '领取时间',
+        onlyToggle: '只看未领',
+        copyBtn: '复制未领名单',
+        exportUndone: '导出未领',
+        exportSuffix: '_领取情况',
+        exportUndoneSuffix: '_未领名单',
+        markTitle: '粘贴名单批量标记已领',
+        copyDone: '全部同学都已领取 🎉',
+        copyTemplate: (names, task) => `以下同学还未领取「${task}」：${names}，请尽快找班长领取，谢谢配合~`,
+        copyTip: (n) => `已复制 ${n} 位未领同学，去群里通知大家来领吧 📋`
+      }
+    : {
+        statTotal: '应交人数',
+        done: '已交',
+        undone: '未交',
+        statusCol: '提交状态',
+        timeCol: '提交时间',
+        onlyToggle: '只看未交',
+        copyBtn: '复制未交名单',
+        exportUndone: '导出未交',
+        exportSuffix: '_提交情况',
+        exportUndoneSuffix: '_未交名单',
+        markTitle: '粘贴名单批量标记已交',
+        copyDone: '全部同学都已交齐 🎉',
+        copyTemplate: (names, task) => `以下同学还未提交「${task}」：${names}，请尽快交给班长，谢谢配合~`,
+        copyTip: (n) => `已复制 ${n} 位未交同学，去群里催交吧 📋`
+      }
+})
+
+const remarkPlaceholder = computed(() =>
+  currentTask.value && currentTask.value.kind === 'distribute' ? '如：1份未盖章' : '如：少交1份'
+)
+
+// 环形图数据：已完成 vs 未完成
+const donutItems = computed(() => [
+  { name: kindText.value.done, value: receivedCount.value, color: '#5eead4' },
+  { name: kindText.value.undone, value: entries.value.length - receivedCount.value, color: '#fdba74' }
+])
+const completionPct = computed(() => {
+  if (!entries.value.length) return '—'
+  return Math.round((receivedCount.value / entries.value.length) * 100) + '%'
+})
 
 function formatTime(iso) {
   if (!iso) return ''
@@ -256,7 +348,8 @@ async function load() {
 async function openTask(row) {
   const { data } = await api.get(`/collections/tasks/${row.id}`)
   currentTask.value = data.data
-  entries.value = data.data.entries || []
+  entries.value = (data.data.entries || []).map((e) => ({ ...e, _savedRemark: e.remark || '' }))
+  onlyUndone.value = false
 }
 
 async function goBack() {
@@ -270,6 +363,7 @@ async function loadStudents() {
 }
 
 function openCreate() {
+  createForm.kind = 'collect'
   createForm.name = ''
   createForm.remark = ''
   createForm.deadline = null
@@ -286,18 +380,20 @@ async function createTask() {
     return
   }
   const { data } = await api.post('/collections/tasks', {
+    kind: createForm.kind,
     name: createForm.name.trim(),
     remark: createForm.remark,
     deadline: createForm.deadline,
     studentIds: createForm.studentIds
   })
   createVisible.value = false
-  ElMessage.success(`任务已创建，共 ${data.data.total} 人待交`)
+  ElMessage.success(`任务已创建，共 ${data.data.total} 人`)
   await openTask(data.data)
 }
 
 function openEditTask(row) {
   editForm.id = row.id
+  editForm.kind = row.kind || 'collect'
   editForm.name = row.name
   editForm.remark = row.remark || ''
   editForm.deadline = toLocalInput(row.deadline)
@@ -310,6 +406,7 @@ async function saveEdit() {
     return
   }
   await api.patch(`/collections/tasks/${editForm.id}`, {
+    kind: editForm.kind,
     name: editForm.name.trim(),
     remark: editForm.remark,
     deadline: editForm.deadline
@@ -335,8 +432,21 @@ async function removeTask(row) {
 
 async function toggleRow(row) {
   await api.patch(`/collections/entries/${row.id}`, { submitted: !row.submitted })
-  ElMessage.success(row.submitted ? `已标记 ${row.name} 未交` : `${row.name} 已交 ✓`)
+  const nowDone = !row.submitted
+  ElMessage.success(nowDone ? `${row.name} ${kindText.value.done} ✓` : `已标记 ${row.name} ${kindText.value.undone}`)
   await openTask(currentTask.value)
+}
+
+// 备注行内编辑：失焦/回车时若有变更则静默保存
+async function saveRemark(row) {
+  if ((row.remark || '') === row._savedRemark) return
+  try {
+    const { data } = await api.patch(`/collections/entries/${row.id}`, { remark: row.remark })
+    row.remark = data.data.remark || ''
+    row._savedRemark = row.remark
+  } catch {
+    row.remark = row._savedRemark || ''
+  }
 }
 
 function openMark() {
@@ -369,7 +479,7 @@ async function saveAddStudents() {
 
 async function removeRow(row) {
   await ElMessageBox.confirm(
-    `从任务名单移除 ${row.name}？其交表记录会一并删除。`,
+    `从任务名单移除 ${row.name}？其记录会一并删除。`,
     '移除人员',
     { type: 'warning' }
   )
@@ -393,33 +503,31 @@ async function markBatch() {
   await load()
 }
 
-async function copyUndelivered() {
+async function copyUndone() {
   const names = entries.value.filter((e) => !e.submitted).map((e) => e.name)
   if (!names.length) {
-    ElMessage.success('全部同学都已交齐 🎉')
+    ElMessage.success(kindText.value.copyDone)
     return
   }
-  const text = `以下同学还未提交「${currentTask.value.name}」：${names.join('、')}，请尽快交给班长，谢谢配合~`
+  const text = kindText.value.copyTemplate(names.join('、'), currentTask.value.name)
   try {
     await navigator.clipboard.writeText(text)
-    ElMessage.success(`已复制 ${names.length} 位未交同学，去群里催交吧 📋`)
+    ElMessage.success(kindText.value.copyTip(names.length))
   } catch {
     ElMessage.error('复制失败，请手动复制')
   }
 }
 
 function exportTask(scope) {
-  const password = localStorage.getItem('accessPassword') || ''
   api
     .get(`/collections/tasks/${currentTask.value.id}/export?format=xlsx&scope=${scope}`, {
-      responseType: 'blob',
-      headers: password ? { 'X-Access-Password': password } : {}
+      responseType: 'blob'
     })
     .then((res) => {
       const blob = new Blob([res.data])
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = `${currentTask.value.name}${scope === 'undelivered' ? '_未交名单' : '_提交情况'}.xlsx`
+      a.download = `${currentTask.value.name}${scope === 'undelivered' ? kindText.value.exportUndoneSuffix : kindText.value.exportSuffix}.xlsx`
       a.click()
       URL.revokeObjectURL(a.href)
     })
@@ -439,5 +547,15 @@ onDeactivated(() => {
 .deadline-passed {
   color: #dc2626;
   font-weight: 600;
+}
+
+.chart-box {
+  flex: 1;
+  min-width: 260px;
+  max-width: 330px;
+  border: 1px solid #ffe4ec;
+  border-radius: 16px;
+  padding: 8px 10px 0;
+  background: #fffdfa;
 }
 </style>

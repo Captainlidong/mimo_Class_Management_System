@@ -48,6 +48,7 @@ public class CollectionService {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", t.getId());
             item.put("name", t.getName());
+            item.put("kind", t.getKind());
             item.put("remark", t.getRemark());
             item.put("deadline", t.getDeadline());
             item.put("createdAt", t.getCreatedAt());
@@ -100,6 +101,7 @@ public class CollectionService {
 
         CollectionTask task = new CollectionTask();
         task.setName(name);
+        task.setKind(textOrNull(body.get("kind")));
         task.setRemark(textOrNull(body.get("remark")));
         task.setDeadline(parseTime(textOrNull(body.get("deadline")), "截止日期"));
         taskRepository.save(task);
@@ -129,6 +131,9 @@ public class CollectionService {
         if (body.containsKey("deadline")) {
             t.setDeadline(parseTime(textOrNull(body.get("deadline")), "截止日期"));
         }
+        if (body.containsKey("kind")) {
+            t.setKind(textOrNull(body.get("kind")));
+        }
         taskRepository.save(t);
         return taskSummary(id);
     }
@@ -152,6 +157,7 @@ public class CollectionService {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", t.getId());
         item.put("name", t.getName());
+        item.put("kind", t.getKind());
         item.put("remark", t.getRemark());
         item.put("deadline", t.getDeadline());
         item.put("createdAt", t.getCreatedAt());
@@ -184,6 +190,7 @@ public class CollectionService {
             item.put("studentNo", s == null ? null : s.getStudentNo());
             item.put("submitted", Boolean.TRUE.equals(e.getSubmitted()));
             item.put("submittedAt", e.getSubmittedAt());
+            item.put("remark", e.getRemark() == null ? "" : e.getRemark());
             rows.add(item);
         }
         rows.sort(Comparator
@@ -192,21 +199,29 @@ public class CollectionService {
         return rows;
     }
 
-    /** 点击标签切换交表状态，自动记录/清除交表时间。 */
+    /** 按请求体实际包含的键更新条目：submitted 切换交/领状态，remark 更新行级备注。 */
     @Transactional
-    public Map<String, Object> setEntrySubmitted(Long entryId, Map<String, Object> body) {
+    public Map<String, Object> updateEntry(Long entryId, Map<String, Object> body) {
         CollectionEntry e = entryRepository.findById(entryId)
                 .orElseThrow(() -> GlobalExceptionHandler.notFound("名单条目不存在"));
-        boolean submitted = body == null || !body.containsKey("submitted")
-                ? true
-                : Boolean.parseBoolean(String.valueOf(body.get("submitted")));
-        e.setSubmitted(submitted);
-        e.setSubmittedAt(submitted ? Instant.now() : null);
+        if (body == null || (!body.containsKey("submitted") && !body.containsKey("remark"))) {
+            throw GlobalExceptionHandler.badRequest("没有需要更新的字段");
+        }
+        if (body.containsKey("submitted")) {
+            Object v = body.get("submitted");
+            boolean submitted = Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
+            e.setSubmitted(submitted);
+            e.setSubmittedAt(submitted ? Instant.now() : null);
+        }
+        if (body.containsKey("remark")) {
+            e.setRemark(textOrNull(body.get("remark")));
+        }
         entryRepository.save(e);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", e.getId());
-        result.put("submitted", submitted);
+        result.put("submitted", Boolean.TRUE.equals(e.getSubmitted()));
         result.put("submittedAt", e.getSubmittedAt());
+        result.put("remark", e.getRemark() == null ? "" : e.getRemark());
         return result;
     }
 

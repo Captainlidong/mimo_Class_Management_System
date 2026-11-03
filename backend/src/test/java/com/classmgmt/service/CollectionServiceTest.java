@@ -180,10 +180,31 @@ class CollectionServiceTest {
         when(entryRepository.findById(100L)).thenReturn(Optional.of(e));
         when(entryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        Map<String, Object> result = service.setEntrySubmitted(100L, Map.of("submitted", true));
+        Map<String, Object> result = service.updateEntry(100L, Map.of("submitted", true));
 
         assertTrue((Boolean) result.get("submitted"));
         assertNotNull(e.getSubmittedAt());
+    }
+
+    @Test
+    void remarkOnlyUpdateKeepsStatusUntouched() {
+        CollectionEntry e = entry(100L, 1L, false);
+        when(entryRepository.findById(100L)).thenReturn(Optional.of(e));
+        when(entryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Map<String, Object> result = service.updateEntry(100L, Map.of("remark", "少交1份"));
+
+        assertEquals("少交1份", result.get("remark"));
+        assertEquals(false, result.get("submitted"), "只更新备注时不应顺带置为已交");
+        assertEquals(null, e.getSubmittedAt(), "未交状态不应有提交时间");
+    }
+
+    @Test
+    void updateEntryRejectsEmptyPayload() {
+        when(entryRepository.findById(100L)).thenReturn(Optional.of(entry(100L, 1L, false)));
+        ApiException ex = assertThrows(ApiException.class,
+                () -> service.updateEntry(100L, Map.of()));
+        assertEquals(400, ex.getCode());
     }
 
     @Test

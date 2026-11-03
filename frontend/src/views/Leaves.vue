@@ -292,11 +292,9 @@ async function remove(row) {
 }
 
 function exportLeaves(format) {
-  const password = localStorage.getItem('accessPassword') || ''
   api
     .get(`/leaves/export?format=${format}`, {
-      responseType: 'blob',
-      headers: password ? { 'X-Access-Password': password } : {}
+      responseType: 'blob'
     })
     .then((res) => {
       const blob = new Blob([res.data])

@@ -71,6 +71,37 @@ class ApiIntegrationTest {
         MvcRecordDetail(recordId, first);
     }
 
+    @Test
+    void studentsExportCsvAndXlsx() throws Exception {
+        restoreSampleBaseline();
+
+        // CSV：BOM + 表头 + 全部学生
+        MvcResult csv = mockMvc.perform(get("/api/students/export").param("format", "csv"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
+                .andReturn();
+        String csvText = csv.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertTrue(csvText.startsWith("\uFEFF"), "csv 应带 BOM");
+        assertTrue(csvText.contains("序号,姓名,学号"), "csv 表头应为 序号,姓名,学号：" + csvText);
+        assertTrue(csvText.contains("Sample01"), "csv 应包含学生姓名：" + csvText);
+        assertTrue(csvText.contains("202401"), "csv 应包含学号：" + csvText);
+        assertEquals(37, csvText.split("\n").length, "表头 + 36 名学生");
+
+        // xlsx：正常生成且文件名带日期
+        MvcResult xlsx = mockMvc.perform(get("/api/students/export").param("format", "xlsx"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andReturn();
+        String disposition = xlsx.getResponse().getHeader("Content-Disposition");
+        assertTrue(disposition != null && disposition.contains(".xlsx"), "xlsx 应有下载文件名：" + disposition);
+        assertTrue(xlsx.getResponse().getContentAsByteArray().length > 0);
+
+        // 非法格式 → 400
+        mockMvc.perform(get("/api/students/export").param("format", "pdf"))
+                .andExpect(status().isBadRequest());
+    }
+
     private void restoreSampleBaseline() throws Exception {
         mockMvc.perform(post("/api/students/unlock")).andExpect(status().isOk());
         StudentsReplaceRequest restore = new StudentsReplaceRequest();

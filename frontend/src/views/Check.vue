@@ -275,11 +275,9 @@ function exportResult(format) {
     ElMessage.warning('请勾选「保存为历史记录」后再导出')
     return
   }
-  const password = localStorage.getItem('accessPassword') || ''
   api
     .get(`/check-records/${id}/export?format=${format}`, {
-      responseType: 'blob',
-      headers: password ? { 'X-Access-Password': password } : {}
+      responseType: 'blob'
     })
     .then((res) => {
       const blob = new Blob([res.data])

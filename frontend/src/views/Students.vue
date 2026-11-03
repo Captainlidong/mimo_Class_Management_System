@@ -8,6 +8,8 @@
       <el-button v-if="locked" type="warning" @click="unlock">解锁修改</el-button>
       <el-button v-else type="primary" @click="lock">锁定名单</el-button>
       <el-button type="success" :disabled="locked" @click="saveAll">保存名单</el-button>
+      <el-button @click="exportStudents('xlsx')">导出Excel</el-button>
+      <el-button @click="exportStudents('csv')">CSV</el-button>
     </div>
 
     <el-alert
@@ -343,11 +345,9 @@ function applyPreview(mode) {
 }
 
 function downloadTemplate() {
-  const password = localStorage.getItem('accessPassword') || ''
   api
     .get('/students/template', {
-      responseType: 'blob',
-      headers: password ? { 'X-Access-Password': password } : {}
+      responseType: 'blob'
     })
     .then((res) => {
       const blob = new Blob([res.data], { type: 'text/plain;charset=utf-8' })
@@ -356,6 +356,26 @@ function downloadTemplate() {
       a.download = '班级名单导入模板.txt'
       a.click()
       URL.revokeObjectURL(a.href)
+    })
+}
+
+// 导出已保存的基准名单（姓名 + 学号）；未保存的编辑需先点「保存名单」
+function exportStudents(format) {
+  api
+    .get(`/students/export?format=${format}`, {
+      responseType: 'blob'
+    })
+    .then((res) => {
+      const blob = new Blob([res.data])
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      const d = new Date()
+      const p = (n) => String(n).padStart(2, '0')
+      const ext = format === 'csv' ? 'csv' : 'xlsx'
+      a.download = `班级名单_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.${ext}`
+      a.click()
+      URL.revokeObjectURL(a.href)
+      ElMessage.success(`已导出 ${students.value.length} 人名单`)
     })
 }
 

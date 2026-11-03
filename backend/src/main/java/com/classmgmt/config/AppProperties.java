@@ -4,10 +4,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
 public class AppProperties {
+    private String accessUsername = "banzhang";
     private String accessPassword = "";
     private boolean seedSample = true;
     private String corsAllowedOrigins = "http://localhost:5173";
     private String uploadDir = "";
+
+    public String getAccessUsername() {
+        return accessUsername;
+    }
+
+    public void setAccessUsername(String accessUsername) {
+        this.accessUsername = accessUsername;
+    }
 
     public String getAccessPassword() {
         return accessPassword;

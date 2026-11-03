@@ -2,6 +2,7 @@ package com.classmgmt.web;
 
 import com.classmgmt.dto.StudentListDTO;
 import com.classmgmt.dto.StudentsReplaceRequest;
+import com.classmgmt.service.ExportService;
 import com.classmgmt.service.ImageOcrService;
 import com.classmgmt.service.StudentImportService;
 import com.classmgmt.service.StudentService;
@@ -23,18 +24,27 @@ public class StudentController {
     private final StudentService studentService;
     private final StudentImportService studentImportService;
     private final ImageOcrService imageOcrService;
+    private final ExportService exportService;
 
     public StudentController(StudentService studentService,
                              StudentImportService studentImportService,
-                             ImageOcrService imageOcrService) {
+                             ImageOcrService imageOcrService,
+                             ExportService exportService) {
         this.studentService = studentService;
         this.studentImportService = studentImportService;
         this.imageOcrService = imageOcrService;
+        this.exportService = exportService;
     }
 
     @GetMapping
     public ApiResponse<StudentListDTO> list() {
         return ApiResponse.ok(studentService.list());
+    }
+
+    /** 基准名单导出：format = xlsx / csv，导出已保存的全班姓名 + 学号。 */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> export(@RequestParam String format) {
+        return exportService.exportStudents(format);
     }
 
     @PutMapping

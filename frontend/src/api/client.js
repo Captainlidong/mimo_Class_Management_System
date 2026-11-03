@@ -3,16 +3,17 @@ import { ElMessage } from 'element-plus'
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 15000
+  timeout: 15000,
+  withCredentials: true
 })
 
-api.interceptors.request.use((config) => {
-  const password = localStorage.getItem('accessPassword') || ''
-  if (password) {
-    config.headers['X-Access-Password'] = password
-  }
-  return config
-})
+// 会话过期统一处理：Layout 挂载后注册，触发时打开登录弹窗
+let unauthorizedHandler = null
+let lastUnauthorizedAt = 0
+
+export function onUnauthorized(fn) {
+  unauthorizedHandler = fn
+}
 
 api.interceptors.response.use(
   (response) => {
@@ -26,15 +27,23 @@ api.interceptors.response.use(
   },
   (error) => {
     const status = error.response && error.response.status
+    if (status === 401) {
+      // 同一时间多个请求 401 时只提示一次，避免弹窗刷屏
+      const now = Date.now()
+      if (now - lastUnauthorizedAt > 1000) {
+        lastUnauthorizedAt = now
+        ElMessage.warning('未登录或登录已过期，请先登录')
+      }
+      if (unauthorizedHandler) {
+        unauthorizedHandler()
+      }
+      return Promise.reject(error)
+    }
     const msg =
       (error.response && error.response.data && error.response.data.message) ||
       error.message ||
       '网络错误'
-    if (status === 401) {
-      ElMessage.error(msg || '访问口令错误或未提供，请在右上角填写口令')
-    } else {
-      ElMessage.error(msg)
-    }
+    ElMessage.error(msg)
     return Promise.reject(error)
   }
 )
