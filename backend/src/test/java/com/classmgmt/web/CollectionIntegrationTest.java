@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -210,5 +211,99 @@ class CollectionIntegrationTest {
         // 6. 清理
         mockMvc.perform(delete("/api/collections/tasks/" + taskId)).andExpect(status().isOk());
         mockMvc.perform(delete("/api/collections/tasks/" + collectTaskId)).andExpect(status().isOk());
+    }
+
+    @Test
+    void batchMarkAllRemoveAndExportOptions() throws Exception {
+        JsonNode students = readJson(mockMvc.perform(get("/api/students")).andExpect(status().isOk()).andReturn())
+                .get("data").get("students");
+        long sid1 = students.get(0).get("id").asLong();
+        long sid2 = students.get(1).get("id").asLong();
+        long sid3 = students.get(2).get("id").asLong();
+        long sid4 = students.get(3).get("id").asLong();
+        String name2 = students.get(1).get("name").asText();
+        String name3 = students.get(2).get("name").asText();
+        String no2 = students.get(1).get("studentNo").asText();
+
+        // 1. 建 3 人任务，手动标记 1 人已交
+        Map<String, Object> createBody = new HashMap<>();
+        createBody.put("name", "批量操作测试");
+        createBody.put("studentIds", java.util.List.of(sid1, sid2, sid3));
+        MvcResult created = mockMvc.perform(post("/api/collections/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .characterEncoding(StandardCharsets.UTF_8)
+                        .content(objectMapper.writeValueAsString(createBody)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long taskId = readJson(created).get("data").get("id").asLong();
+        long entryId = readJson(mockMvc.perform(get("/api/collections/tasks/" + taskId)).andReturn())
+                .get("data").get("entries").get(0).get("id").asLong();
+        mockMvc.perform(patch("/api/collections/entries/" + entryId)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"submitted\":true}"))
+                .andExpect(status().isOk());
+
+        // 2. mark-all=true：只改剩下的 2 人，全部已交
+        mockMvc.perform(post("/api/collections/tasks/" + taskId + "/mark-all")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"submitted\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.changed").value(2))
+                .andExpect(jsonPath("$.data.total").value(3))
+                .andExpect(jsonPath("$.data.received").value(3));
+
+        // 3. mark-all=false：清空全部标记
+        mockMvc.perform(post("/api/collections/tasks/" + taskId + "/mark-all")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"submitted\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.changed").value(3))
+                .andExpect(jsonPath("$.data.received").value(0));
+
+        // 4. 批量移除：1 人在名单 + 1 人不在名单
+        mockMvc.perform(post("/api/collections/tasks/" + taskId + "/students/batch-remove")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .characterEncoding(StandardCharsets.UTF_8)
+                        .content("{\"studentIds\":[" + sid1 + "," + sid4 + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.removed").value(1))
+                .andExpect(jsonPath("$.data.skipped").value(1));
+        mockMvc.perform(get("/api/collections/tasks/" + taskId))
+                .andExpect(jsonPath("$.data.total").value(2));
+
+        // 5. 导出选列：columns=name,studentNo → 表头恰为 姓名,学号，无状态列，无总结行
+        MvcResult csv = mockMvc.perform(get("/api/collections/tasks/" + taskId + "/export")
+                        .param("format", "csv").param("columns", "name,studentNo"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String csvText = csv.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertTrue(csvText.startsWith("\uFEFF姓名,学号\n"), "表头应恰为 姓名,学号：" + csvText);
+        assertFalse(csvText.contains("提交状态"), "不应包含状态列：" + csvText);
+        assertFalse(csvText.contains("任务,"), "默认不应包含总结行：" + csvText);
+        java.util.List<String> plainLines = java.util.Arrays.stream(csvText.replace("\uFEFF", "").split("\n"))
+                .filter(s -> !s.isBlank()).toList();
+        assertEquals(3, plainLines.size(), "表头 + 2 行数据：" + csvText);
+
+        // 6. 导出 summary=true：任务/统计行出现在数据之后
+        MvcResult csvSummary = mockMvc.perform(get("/api/collections/tasks/" + taskId + "/export")
+                        .param("format", "csv").param("columns", "name,studentNo").param("summary", "true"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String summaryText = csvSummary.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        java.util.List<String> lines = java.util.Arrays.stream(summaryText.replace("\uFEFF", "").split("\n"))
+                .filter(s -> !s.isBlank()).toList();
+        assertEquals("姓名,学号", lines.get(0));
+        assertEquals(5, lines.size(), "表头 + 2 数据 + 任务 + 统计：" + summaryText);
+        assertTrue(lines.get(1).contains(name2) && lines.get(1).contains(no2), "数据行应含姓名学号：" + summaryText);
+        assertTrue(lines.get(2).contains(name3), "第二行数据：" + summaryText);
+        assertTrue(lines.get(3).startsWith("任务,") && lines.get(3).contains("批量操作测试"),
+                "任务行应紧跟数据之后：" + summaryText);
+        assertTrue(lines.get(4).startsWith("统计,") && lines.get(4).contains("应交 2"),
+                "统计行应在最后：" + summaryText);
+
+        // 7. xlsx 选列 + 总结也可正常生成
+        mockMvc.perform(get("/api/collections/tasks/" + taskId + "/export")
+                        .param("format", "xlsx").param("columns", "name,studentNo").param("summary", "true"))
+                .andExpect(status().isOk());
+
+        // 8. 清理
+        mockMvc.perform(delete("/api/collections/tasks/" + taskId)).andExpect(status().isOk());
     }
 }

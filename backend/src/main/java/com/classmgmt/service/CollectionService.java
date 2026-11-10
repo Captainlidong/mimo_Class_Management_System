@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -334,6 +335,69 @@ public class CollectionService {
         CollectionEntry e = entryRepository.findByTaskIdAndStudentId(taskId, studentId)
                 .orElseThrow(() -> GlobalExceptionHandler.notFound("该同学不在此任务的名单中"));
         entryRepository.delete(e);
+    }
+
+    /**
+     * 一键标记全部条目：只更新状态有变化的条目（已交时间不被无谓刷新）。返回 {changed, total, received}。
+     */
+    @Transactional
+    public Map<String, Object> markAll(Long taskId, Map<String, Object> body) {
+        findTask(taskId);
+        if (body == null || !body.containsKey("submitted")) {
+            throw GlobalExceptionHandler.badRequest("缺少 submitted 参数");
+        }
+        Object v = body.get("submitted");
+        boolean submitted = Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
+        int changed = 0;
+        List<CollectionEntry> entries = entryRepository.findByTaskId(taskId);
+        for (CollectionEntry e : entries) {
+            if (Boolean.TRUE.equals(e.getSubmitted()) != submitted) {
+                e.setSubmitted(submitted);
+                e.setSubmittedAt(submitted ? Instant.now() : null);
+                entryRepository.save(e);
+                changed++;
+            }
+        }
+        long received = entries.stream().filter(e -> Boolean.TRUE.equals(e.getSubmitted())).count();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("changed", changed);
+        result.put("total", entries.size());
+        result.put("received", received);
+        return result;
+    }
+
+    /** 批量移除任务名单成员（连同其交表记录）；不在名单里的跳过。返回 {removed, skipped}。 */
+    @Transactional
+    public Map<String, Object> removeStudentsBatch(Long taskId, Map<String, Object> body) {
+        findTask(taskId);
+        if (!(body.get("studentIds") instanceof List<?> ids) || ids.isEmpty()) {
+            throw GlobalExceptionHandler.badRequest("请选择要移除的同学");
+        }
+        int removed = 0;
+        int skipped = 0;
+        Set<Long> seen = new LinkedHashSet<>();
+        for (Object o : ids) {
+            Long sid;
+            try {
+                sid = Long.valueOf(String.valueOf(o).trim());
+            } catch (NumberFormatException e) {
+                throw GlobalExceptionHandler.badRequest("学生编号格式不正确：" + o);
+            }
+            if (!seen.add(sid)) {
+                continue;
+            }
+            Optional<CollectionEntry> existing = entryRepository.findByTaskIdAndStudentId(taskId, sid);
+            if (existing.isPresent()) {
+                entryRepository.delete(existing.get());
+                removed++;
+            } else {
+                skipped++;
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("removed", removed);
+        result.put("skipped", skipped);
+        return result;
     }
 
     // —— 工具 ——

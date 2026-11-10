@@ -75,10 +75,27 @@ public class CollectionController {
         return ApiResponse.ok(collectionService.markByText(id, body));
     }
 
+    /** 一键标记全部条目，body = {submitted: true/false}；返回 {changed, total, received}。 */
+    @PostMapping("/tasks/{id}/mark-all")
+    public ApiResponse<Map<String, Object>> markAll(@PathVariable Long id,
+                                                    @RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(collectionService.markAll(id, body));
+    }
+
+    /** 批量移除任务名单成员，body = {studentIds: []}；不在名单里的跳过。返回 {removed, skipped}。 */
+    @PostMapping("/tasks/{id}/students/batch-remove")
+    public ApiResponse<Map<String, Object>> removeStudentsBatch(@PathVariable Long id,
+                                                                @RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(collectionService.removeStudentsBatch(id, body));
+    }
+
+    /** 导出任务名单。columns 可选（no,name,studentNo,status,time，remark），缺省全量；summary=true 时任务名/统计行附在名单末尾。 */
     @GetMapping("/tasks/{id}/export")
     public ResponseEntity<byte[]> exportTask(@PathVariable Long id,
                                              @RequestParam(defaultValue = "xlsx") String format,
-                                             @RequestParam(defaultValue = "all") String scope) {
-        return exportService.exportCollection(id, format, scope);
+                                             @RequestParam(defaultValue = "all") String scope,
+                                             @RequestParam(required = false) String columns,
+                                             @RequestParam(defaultValue = "false") boolean summary) {
+        return exportService.exportCollection(id, format, scope, columns, summary);
     }
 }

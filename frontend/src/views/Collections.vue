@@ -62,9 +62,10 @@
         <div style="flex: 1"></div>
         <el-button type="primary" @click="openMark">📋 粘贴名单标记</el-button>
         <el-button @click="openAddStudents">＋ 添加人员</el-button>
+        <el-button type="danger" plain @click="openBatchRemove">批量移除</el-button>
         <el-button type="success" @click="copyUndone">{{ kindText.copyBtn }}</el-button>
-        <el-button @click="exportTask('all')">导出全部</el-button>
-        <el-button type="warning" plain @click="exportTask('undelivered')">{{ kindText.exportUndone }}</el-button>
+        <el-button @click="openExport('all')">导出全部</el-button>
+        <el-button type="warning" plain @click="openExport('undelivered')">{{ kindText.exportUndone }}</el-button>
         <el-button @click="openEditTask(currentTask)">编辑任务</el-button>
       </div>
 
@@ -82,8 +83,9 @@
         </div>
       </div>
 
-      <div style="margin-bottom: 10px">
+      <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap">
         <el-switch v-model="onlyUndone" :active-text="kindText.onlyToggle" />
+        <el-switch :model-value="allDone" :active-text="kindText.markAllToggle" @change="onMarkAllChange" />
       </div>
 
       <el-table :data="filteredEntries" border stripe>
@@ -208,6 +210,60 @@
       </template>
     </el-dialog>
 
+    <!-- 批量移除 -->
+    <el-dialog v-model="batchRemoveVisible" title="批量移除人员" width="560px" append-to-body :close-on-click-modal="false">
+      <el-form label-width="90px">
+        <el-form-item label="移除同学">
+          <div style="width: 100%">
+            <div style="margin-bottom: 6px">
+              <el-button size="small" @click="selectAllUndone">{{ kindText.selectAllUndone }}</el-button>
+              <el-button size="small" @click="batchRemoveIds = []">清空</el-button>
+              <span class="muted" style="margin-left: 8px">已选 {{ batchRemoveIds.length }} / {{ entries.length }} 人</span>
+            </div>
+            <el-select v-model="batchRemoveIds" multiple filterable placeholder="搜索或选择要移除的同学" style="width: 100%">
+              <el-option v-for="e in entries" :key="e.studentId" :label="`${e.name}（${e.studentNo || '无学号'}）`" :value="e.studentId" />
+            </el-select>
+            <p class="muted" style="margin: 8px 0 0">移除会连同该同学的{{ kindText.done }}记录一起删除，不可恢复。</p>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchRemoveVisible = false">取消</el-button>
+        <el-button type="danger" :disabled="!batchRemoveIds.length" @click="saveBatchRemove">移除</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 导出选项 -->
+    <el-dialog v-model="exportVisible" title="导出名单" width="540px" append-to-body :close-on-click-modal="false">
+      <el-form label-width="90px">
+        <el-form-item label="导出范围">
+          <el-radio-group v-model="exportForm.scope">
+            <el-radio-button value="all">全部名单</el-radio-button>
+            <el-radio-button value="undelivered">{{ kindText.exportUndoneScope }}</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="包含列">
+          <div style="width: 100%">
+            <el-checkbox-group v-model="exportForm.columns">
+              <el-checkbox v-for="c in exportColumnOptions" :key="c.key" :value="c.key">{{ c.label }}</el-checkbox>
+            </el-checkbox-group>
+            <el-button link type="primary" size="small" @click="exportForm.columns = exportColumnOptions.map((c) => c.key)">恢复默认全选</el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="统计信息">
+          <div style="width: 100%">
+            <el-switch v-model="exportForm.summary" />
+            <span class="muted" style="margin-left: 10px">附任务名与{{ kindText.statSummary }}统计，出现在名单末尾</span>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="exportVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!exportForm.columns.length" @click="exportTask('xlsx')">导出Excel</el-button>
+        <el-button :disabled="!exportForm.columns.length" @click="exportTask('csv')">导出CSV</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 粘贴名单批量标记 -->
     <el-dialog v-model="markVisible" :title="kindText.markTitle" width="560px" append-to-body>
       <p class="muted" style="margin-top: 0">
@@ -253,6 +309,10 @@ const markText = ref('')
 const markResult = ref(null)
 const addStudentsVisible = ref(false)
 const addStudentIds = ref([])
+const batchRemoveVisible = ref(false)
+const batchRemoveIds = ref([])
+const exportVisible = ref(false)
+const exportForm = reactive({ scope: 'all', columns: [], summary: false })
 
 // 添加人员时只显示还没在该任务名单里的同学
 const availableStudents = computed(() => {
@@ -261,6 +321,8 @@ const availableStudents = computed(() => {
 })
 
 const receivedCount = computed(() => entries.value.filter((e) => e.submitted).length)
+// 一键标记开关的状态由数据派生：全员已完成时为开
+const allDone = computed(() => entries.value.length > 0 && receivedCount.value === entries.value.length)
 const filteredEntries = computed(() =>
   onlyUndone.value ? entries.value.filter((e) => !e.submitted) : entries.value
 )
@@ -281,6 +343,10 @@ const kindText = computed(() => {
         exportSuffix: '_领取情况',
         exportUndoneSuffix: '_未领名单',
         markTitle: '粘贴名单批量标记已领',
+        markAllToggle: '一键标记全部已领',
+        selectAllUndone: '勾选全部未领',
+        exportUndoneScope: '仅未领',
+        statSummary: '应发/已领',
         copyDone: '全部同学都已领取 🎉',
         copyTemplate: (names, task) => `以下同学还未领取「${task}」：${names}，请尽快找班长领取，谢谢配合~`,
         copyTip: (n) => `已复制 ${n} 位未领同学，去群里通知大家来领吧 📋`
@@ -297,6 +363,10 @@ const kindText = computed(() => {
         exportSuffix: '_提交情况',
         exportUndoneSuffix: '_未交名单',
         markTitle: '粘贴名单批量标记已交',
+        markAllToggle: '一键标记全部已交',
+        selectAllUndone: '勾选全部未交',
+        exportUndoneScope: '仅未交',
+        statSummary: '应交/已交',
         copyDone: '全部同学都已交齐 🎉',
         copyTemplate: (names, task) => `以下同学还未提交「${task}」：${names}，请尽快交给班长，谢谢配合~`,
         copyTip: (n) => `已复制 ${n} 位未交同学，去群里催交吧 📋`
@@ -306,6 +376,19 @@ const kindText = computed(() => {
 const remarkPlaceholder = computed(() =>
   currentTask.value && currentTask.value.kind === 'distribute' ? '如：1份未盖章' : '如：少交1份'
 )
+
+// 导出对话框候选列（文案随任务类型切换）
+const exportColumnOptions = computed(() => {
+  const distribute = !!(currentTask.value && currentTask.value.kind === 'distribute')
+  return [
+    { key: 'no', label: '序号' },
+    { key: 'name', label: '姓名' },
+    { key: 'studentNo', label: '学号' },
+    { key: 'status', label: distribute ? '领取状态' : '提交状态' },
+    { key: 'time', label: distribute ? '领取时间' : '提交时间' },
+    { key: 'remark', label: '备注' }
+  ]
+})
 
 // 环形图数据：已完成 vs 未完成
 const donutItems = computed(() => [
@@ -489,6 +572,59 @@ async function removeRow(row) {
   await load()
 }
 
+// —— 批量移除 ——
+function openBatchRemove() {
+  batchRemoveIds.value = []
+  batchRemoveVisible.value = true
+}
+
+function selectAllUndone() {
+  batchRemoveIds.value = entries.value.filter((e) => !e.submitted).map((e) => e.studentId)
+  if (!batchRemoveIds.value.length) {
+    ElMessage.success(kindText.value.copyDone)
+  }
+}
+
+async function saveBatchRemove() {
+  const names = entries.value
+    .filter((e) => batchRemoveIds.value.includes(e.studentId))
+    .map((e) => e.name)
+  await ElMessageBox.confirm(
+    `将从任务中移除 ${names.length} 人：${names.slice(0, 8).join('、')}${names.length > 8 ? ' 等' : ''}？记录会一并删除，不可恢复。`,
+    '批量移除',
+    { type: 'warning', confirmButtonText: '移除' }
+  )
+  const { data } = await api.post(`/collections/tasks/${currentTask.value.id}/students/batch-remove`, {
+    studentIds: batchRemoveIds.value
+  })
+  batchRemoveVisible.value = false
+  ElMessage.success(`已移除 ${data.data.removed} 人${data.data.skipped ? `，跳过 ${data.data.skipped} 人` : ''}`)
+  await openTask(currentTask.value)
+  await load()
+}
+
+// —— 一键标记全部（开关状态由数据派生，切换需确认） ——
+async function onMarkAllChange(target) {
+  const done = kindText.value.done
+  const undone = kindText.value.undone
+  const confirmText = target
+    ? `将把全部 ${entries.value.length} 人标记为${done}，确认？`
+    : `将清空全部${done}标记（${receivedCount.value} 人回${undone}），确认？`
+  try {
+    await ElMessageBox.confirm(confirmText, '一键标记', { type: 'warning', confirmButtonText: '确定' })
+  } catch {
+    return // 取消：开关保持数据派生状态
+  }
+  try {
+    const { data } = await api.post(`/collections/tasks/${currentTask.value.id}/mark-all`, { submitted: target })
+    ElMessage.success(target
+      ? `已全部标记${done}（共 ${data.data.total} 人）`
+      : `已清空标记（${data.data.changed} 人回${undone}）`)
+  } finally {
+    await openTask(currentTask.value)
+  }
+}
+
 async function markBatch() {
   if (!markText.value.trim()) {
     ElMessage.warning('请先粘贴名单')
@@ -518,18 +654,34 @@ async function copyUndone() {
   }
 }
 
-function exportTask(scope) {
+// —— 导出（先选范围/列/统计，再下载） ——
+function openExport(scope) {
+  exportForm.scope = scope
+  exportForm.columns = exportColumnOptions.value.map((c) => c.key)
+  exportForm.summary = false
+  exportVisible.value = true
+}
+
+function exportTask(format) {
+  if (!exportForm.columns.length) {
+    ElMessage.warning('请至少选择一列')
+    return
+  }
   api
-    .get(`/collections/tasks/${currentTask.value.id}/export?format=xlsx&scope=${scope}`, {
-      responseType: 'blob'
-    })
+    .get(
+      `/collections/tasks/${currentTask.value.id}/export?format=${format}&scope=${exportForm.scope}`
+      + `&columns=${exportForm.columns.join(',')}&summary=${exportForm.summary}`,
+      { responseType: 'blob' }
+    )
     .then((res) => {
       const blob = new Blob([res.data])
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = `${currentTask.value.name}${scope === 'undelivered' ? kindText.value.exportUndoneSuffix : kindText.value.exportSuffix}.xlsx`
+      a.download = `${currentTask.value.name}${exportForm.scope === 'undelivered' ? kindText.value.exportUndoneSuffix : kindText.value.exportSuffix}.${format === 'csv' ? 'csv' : 'xlsx'}`
       a.click()
       URL.revokeObjectURL(a.href)
+      exportVisible.value = false
+      ElMessage.success('已导出')
     })
 }
 
@@ -540,6 +692,8 @@ onDeactivated(() => {
   editVisible.value = false
   markVisible.value = false
   addStudentsVisible.value = false
+  batchRemoveVisible.value = false
+  exportVisible.value = false
 })
 </script>
 

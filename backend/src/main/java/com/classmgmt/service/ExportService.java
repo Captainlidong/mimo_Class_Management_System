@@ -19,8 +19,12 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class ExportService {
@@ -301,12 +305,15 @@ public class ExportService {
                 row.get("remark") == null ? "" : String.valueOf(row.get("remark")));
     }
 
-    public ResponseEntity<byte[]> exportCollection(Long taskId, String format, String scope) {
+    /** 收集/分发导出的候选列（固定顺序）；标签随任务类型切换。 */
+    private static final List<String> COLLECTION_COLUMN_KEYS =
+            List.of("no", "name", "studentNo", "status", "time", "remark");
+
+    public ResponseEntity<byte[]> exportCollection(Long taskId, String format, String scope,
+                                                   String columnsParam, boolean summary) {
         Map<String, Object> task = collectionService.getTask(taskId);
         boolean distribute = "distribute".equals(task.get("kind"));
-        List<String> columns = distribute
-                ? List.of("序号", "姓名", "学号", "领取状态", "领取时间", "备注")
-                : List.of("序号", "姓名", "学号", "提交状态", "提交时间", "备注");
+        List<String> keys = resolveCollectionColumns(columnsParam);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) task.get("entries");
         List<Map<String, Object>> filtered = switch (scope == null ? "all" : scope) {
@@ -321,15 +328,50 @@ public class ExportService {
                     ? (distribute ? "_未领名单" : "_未交名单")
                     : (distribute ? "_领取情况" : "_提交情况"));
         return switch (format) {
-            case "xlsx", "excel" -> collectionXlsx(task, filtered, base, columns, distribute);
-            case "csv" -> collectionCsv(task, filtered, base, columns, distribute);
+            case "xlsx", "excel" -> collectionXlsx(task, filtered, base, keys, distribute, summary);
+            case "csv" -> collectionCsv(task, filtered, base, keys, distribute, summary);
             default -> throw GlobalExceptionHandler.badRequest("不支持的导出格式：" + format);
+        };
+    }
+
+    /** 解析列参数：固定顺序过滤，大小写不敏感，未知键忽略；为空/全无效时回退全量。 */
+    private List<String> resolveCollectionColumns(String columnsParam) {
+        if (columnsParam == null || columnsParam.isBlank()) {
+            return COLLECTION_COLUMN_KEYS;
+        }
+        Set<String> requested = new LinkedHashSet<>();
+        for (String p : columnsParam.split(",")) {
+            String token = p.trim().toLowerCase(Locale.ROOT);
+            for (String k : COLLECTION_COLUMN_KEYS) {
+                if (k.toLowerCase(Locale.ROOT).equals(token)) {
+                    requested.add(k);
+                    break;
+                }
+            }
+        }
+        if (requested.isEmpty()) {
+            return COLLECTION_COLUMN_KEYS;
+        }
+        List<String> result = new ArrayList<>(COLLECTION_COLUMN_KEYS);
+        result.removeIf(k -> !requested.contains(k));
+        return result;
+    }
+
+    private String collectionColumnLabel(String key, boolean distribute) {
+        return switch (key) {
+            case "no" -> "序号";
+            case "name" -> "姓名";
+            case "studentNo" -> "学号";
+            case "status" -> distribute ? "领取状态" : "提交状态";
+            case "time" -> distribute ? "领取时间" : "提交时间";
+            case "remark" -> "备注";
+            default -> key;
         };
     }
 
     private ResponseEntity<byte[]> collectionXlsx(Map<String, Object> task,
                                                   List<Map<String, Object>> entries, String base,
-                                                  List<String> columns, boolean distribute) {
+                                                  List<String> keys, boolean distribute, boolean summary) {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet(distribute ? "领取情况" : "提交情况");
             CellStyle header = workbook.createCellStyle();
@@ -339,29 +381,31 @@ public class ExportService {
             header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
             header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
-            Row meta = sheet.createRow(0);
-            meta.createCell(0).setCellValue("任务");
-            meta.createCell(1).setCellValue(String.valueOf(task.get("name")));
-            Row counts = sheet.createRow(1);
-            counts.createCell(0).setCellValue("统计");
-            counts.createCell(1).setCellValue((distribute ? "应发 " : "应交 ") + task.get("total")
-                    + (distribute ? " / 已领 " : " / 已交 ") + task.get("received"));
-
-            Row head = sheet.createRow(3);
-            for (int i = 0; i < columns.size(); i++) {
+            Row head = sheet.createRow(0);
+            for (int i = 0; i < keys.size(); i++) {
                 Cell c = head.createCell(i);
-                c.setCellValue(columns.get(i));
+                c.setCellValue(collectionColumnLabel(keys.get(i), distribute));
                 c.setCellStyle(header);
             }
-            int r = 4;
+            int r = 1;
             for (Map<String, Object> row : entries) {
                 Row line = sheet.createRow(r++);
-                List<String> cells = collectionCells(row, distribute);
+                List<String> cells = collectionCells(row, keys, distribute, r - 1);
                 for (int i = 0; i < cells.size(); i++) {
                     line.createCell(i).setCellValue(cells.get(i));
                 }
             }
-            for (int i = 0; i < columns.size(); i++) {
+            if (summary) {
+                r++; // 名单后空一行，再附任务名与统计
+                Row meta = sheet.createRow(r++);
+                meta.createCell(0).setCellValue("任务");
+                meta.createCell(1).setCellValue(String.valueOf(task.get("name")));
+                Row counts = sheet.createRow(r);
+                counts.createCell(0).setCellValue("统计");
+                counts.createCell(1).setCellValue((distribute ? "应发 " : "应交 ") + task.get("total")
+                        + (distribute ? " / 已领 " : " / 已交 ") + task.get("received"));
+            }
+            for (int i = 0; i < keys.size(); i++) {
                 sheet.autoSizeColumn(i);
             }
             workbook.write(out);
@@ -375,13 +419,14 @@ public class ExportService {
 
     private ResponseEntity<byte[]> collectionCsv(Map<String, Object> task,
                                                  List<Map<String, Object>> entries, String base,
-                                                 List<String> columns, boolean distribute) {
+                                                 List<String> keys, boolean distribute, boolean summary) {
         StringBuilder sb = new StringBuilder();
         sb.append('\uFEFF');
-        sb.append("任务,").append(csvEscape(String.valueOf(task.get("name")))).append("\n");
-        sb.append(String.join(",", columns)).append("\n");
+        List<String> labels = keys.stream().map(k -> collectionColumnLabel(k, distribute)).toList();
+        sb.append(String.join(",", labels)).append("\n");
+        int seq = 1;
         for (Map<String, Object> row : entries) {
-            List<String> cells = collectionCells(row, distribute);
+            List<String> cells = collectionCells(row, keys, distribute, seq++);
             for (int i = 0; i < cells.size(); i++) {
                 if (i > 0) {
                     sb.append(",");
@@ -390,19 +435,35 @@ public class ExportService {
             }
             sb.append("\n");
         }
+        if (summary) {
+            sb.append("\n");
+            sb.append("任务,").append(csvEscape(String.valueOf(task.get("name")))).append("\n");
+            sb.append("统计,").append(csvEscape((distribute ? "应发 " : "应交 ") + task.get("total")
+                    + (distribute ? " / 已领 " : " / 已交 ") + task.get("received"))).append("\n");
+        }
         return file(base + ".csv", MediaType.parseMediaType("text/csv;charset=UTF-8"),
                 sb.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    private List<String> collectionCells(Map<String, Object> row, boolean distribute) {
+    private List<String> collectionCells(Map<String, Object> row, List<String> keys,
+                                         boolean distribute, int seqNo) {
         boolean done = Boolean.TRUE.equals(row.get("submitted"));
-        return List.of(
-                String.valueOf(row.get("studentId")),
-                String.valueOf(row.get("name")),
-                row.get("studentNo") == null ? "" : String.valueOf(row.get("studentNo")),
-                done ? (distribute ? "已领" : "已交") : (distribute ? "未领" : "未交"),
-                leaveService.display((java.time.Instant) row.get("submittedAt")),
-                row.get("remark") == null ? "" : String.valueOf(row.get("remark")));
+        List<String> cells = new ArrayList<>();
+        for (String key : keys) {
+            switch (key) {
+                case "no" -> cells.add(String.valueOf(seqNo));
+                case "name" -> cells.add(String.valueOf(row.get("name")));
+                case "studentNo" -> cells.add(row.get("studentNo") == null
+                        ? "" : String.valueOf(row.get("studentNo")));
+                case "status" -> cells.add(done
+                        ? (distribute ? "已领" : "已交")
+                        : (distribute ? "未领" : "未交"));
+                case "time" -> cells.add(leaveService.display((java.time.Instant) row.get("submittedAt")));
+                case "remark" -> cells.add(row.get("remark") == null ? "" : String.valueOf(row.get("remark")));
+                default -> cells.add("");
+            }
+        }
+        return cells;
     }
 
     private ResponseEntity<byte[]> xlsx(CheckResultDTO dto, String base) {
