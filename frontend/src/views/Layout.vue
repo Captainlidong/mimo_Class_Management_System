@@ -16,6 +16,7 @@
         <el-menu-item index="/groups"><span class="menu-ico">🫧</span> 自定义分组</el-menu-item>
         <el-menu-item index="/announcements"><span class="menu-ico">📣</span> 群发素材</el-menu-item>
         <el-menu-item index="/leaves"><span class="menu-ico">🌙</span> 请假记录</el-menu-item>
+        <el-menu-item index="/todos"><span class="menu-ico">⏰</span> 待办事务</el-menu-item>
         <el-menu-item index="/scholarships"><span class="menu-ico">🏆</span> 奖学金统计</el-menu-item>
         <el-menu-item index="/collections"><span class="menu-ico">📥</span> 资料收集与分发</el-menu-item>
       </el-menu>
@@ -102,7 +103,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 import api, { onUnauthorized } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
@@ -169,9 +170,28 @@ onUnauthorized(() => {
   auth.handleUnauthorized()
 })
 
+// 登录后如有 已过期/今天到期 的待办，弹一张提醒卡片
+async function notifyTodos() {
+  if (auth.authRequired && !auth.loggedIn) return
+  try {
+    const { data } = await api.get('/todos')
+    const urgent = (data.data || []).filter((t) => !t.done && (t.overdue || t.dueToday))
+    if (!urgent.length) return
+    const names = urgent.slice(0, 3).map((t) => t.title).join('、')
+    ElNotification.warning({
+      title: '⏰ 待办提醒',
+      message: `有 ${urgent.length} 件待办需要处理：${names}${urgent.length > 3 ? ' 等' : ''}`,
+      duration: 8000
+    })
+  } catch (e) {
+    /* 未登录或网络问题静默 */
+  }
+}
+
 onMounted(async () => {
   await auth.refresh()
   auth.openLogin()
+  notifyTodos()
 })
 </script>
 
