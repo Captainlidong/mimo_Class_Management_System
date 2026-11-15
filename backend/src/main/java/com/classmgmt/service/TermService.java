@@ -41,15 +41,18 @@ public class TermService {
     private final SystemSettingRepository systemSettingRepository;
     private final EntityManager entityManager;
     private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+    private final OperationLogService operationLogService;
 
     public TermService(TermRepository termRepository,
                        SystemSettingRepository systemSettingRepository,
                        EntityManager entityManager,
-                       org.springframework.transaction.support.TransactionTemplate transactionTemplate) {
+                       org.springframework.transaction.support.TransactionTemplate transactionTemplate,
+                       OperationLogService operationLogService) {
         this.termRepository = termRepository;
         this.systemSettingRepository = systemSettingRepository;
         this.entityManager = entityManager;
         this.transactionTemplate = transactionTemplate;
+        this.operationLogService = operationLogService;
     }
 
     /** 兼容迁移：term 表为空时创建「默认学期」，并把既有业务数据一次性挂到它名下。 */
@@ -197,6 +200,7 @@ public class TermService {
         term.setCreatedAt(Instant.now());
         termRepository.save(term);
         setViewPointer(term.getId());
+        operationLogService.log("term.create", "系统", "换届至「" + name + "」），旧学期归档只读");
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", term.getId());
         m.put("name", term.getName());

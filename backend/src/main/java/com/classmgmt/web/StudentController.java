@@ -4,6 +4,7 @@ import com.classmgmt.dto.StudentListDTO;
 import com.classmgmt.dto.StudentsReplaceRequest;
 import com.classmgmt.service.ExportService;
 import com.classmgmt.service.ImageOcrService;
+import com.classmgmt.service.OperationLogService;
 import com.classmgmt.service.StudentImportService;
 import com.classmgmt.service.StudentService;
 import org.springframework.http.HttpHeaders;
@@ -25,15 +26,18 @@ public class StudentController {
     private final StudentImportService studentImportService;
     private final ImageOcrService imageOcrService;
     private final ExportService exportService;
+    private final OperationLogService operationLogService;
 
     public StudentController(StudentService studentService,
                              StudentImportService studentImportService,
                              ImageOcrService imageOcrService,
-                             ExportService exportService) {
+                             ExportService exportService,
+                             OperationLogService operationLogService) {
         this.studentService = studentService;
         this.studentImportService = studentImportService;
         this.imageOcrService = imageOcrService;
         this.exportService = exportService;
+        this.operationLogService = operationLogService;
     }
 
     @GetMapping
@@ -55,12 +59,14 @@ public class StudentController {
     @PostMapping("/lock")
     public ApiResponse<StudentListDTO> lock() {
         studentService.setLocked(true);
+        operationLogService.log("roster.lock", "名单", "锁定基准名单（只读）");
         return ApiResponse.ok(studentService.list());
     }
 
     @PostMapping("/unlock")
     public ApiResponse<StudentListDTO> unlock() {
         studentService.setLocked(false);
+        operationLogService.log("roster.unlock", "名单", "解锁基准名单");
         return ApiResponse.ok(studentService.list());
     }
 

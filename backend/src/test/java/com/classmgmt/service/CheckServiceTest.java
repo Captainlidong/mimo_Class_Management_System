@@ -26,7 +26,7 @@ class CheckServiceTest {
 
     @BeforeEach
     void setUp() {
-        checkService = new CheckService(null, null, new ObjectMapper(), null, stubTermService());
+        checkService = new CheckService(null, null, new ObjectMapper(), null, stubTermService(), null, org.mockito.Mockito.mock(OperationLogService.class));
         baseline = new ArrayList<>();
         baseline.add(student("张三", "001"));
         baseline.add(student("李四", "002"));

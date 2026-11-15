@@ -30,15 +30,18 @@ public class CollectionService {
     private final CollectionEntryRepository entryRepository;
     private final StudentRepository studentRepository;
     private final TermService termService;
+    private final OperationLogService operationLogService;
 
     public CollectionService(CollectionTaskRepository taskRepository,
                              CollectionEntryRepository entryRepository,
                              StudentRepository studentRepository,
-                             TermService termService) {
+                             TermService termService,
+                             OperationLogService operationLogService) {
         this.taskRepository = taskRepository;
         this.entryRepository = entryRepository;
         this.studentRepository = studentRepository;
         this.termService = termService;
+        this.operationLogService = operationLogService;
     }
 
     // —— 任务 ——
@@ -154,6 +157,7 @@ public class CollectionService {
                 .orElseThrow(() -> GlobalExceptionHandler.notFound("任务不存在"));
         termService.ensureWritable(t.getTermId());
         entryRepository.deleteByTaskId(id);
+        operationLogService.log("collection.task.delete", "收集", "删除收集任务「" + t.getName() + "」");
         taskRepository.deleteById(id);
     }
 

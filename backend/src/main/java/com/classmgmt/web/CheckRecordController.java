@@ -2,6 +2,7 @@ package com.classmgmt.web;
 
 import com.classmgmt.dto.CheckRecordSummaryDTO;
 import com.classmgmt.dto.CheckResultDTO;
+import com.classmgmt.service.CheckService;
 import com.classmgmt.service.ExportService;
 import com.classmgmt.service.HistoryService;
 import org.springframework.http.HttpHeaders;
@@ -20,10 +21,13 @@ public class CheckRecordController {
 
     private final HistoryService historyService;
     private final ExportService exportService;
+    private final CheckService checkService;
 
-    public CheckRecordController(HistoryService historyService, ExportService exportService) {
+    public CheckRecordController(HistoryService historyService, ExportService exportService,
+                                 CheckService checkService) {
         this.historyService = historyService;
         this.exportService = exportService;
+        this.checkService = checkService;
     }
 
     @GetMapping
@@ -47,6 +51,12 @@ public class CheckRecordController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         historyService.delete(id);
         return ApiResponse.ok(null);
+    }
+
+    /** 未参与名单一键转收集任务（补交收集）。 */
+    @PostMapping("/{id}/convert-to-collection")
+    public ApiResponse<Map<String, Object>> convertToCollection(@PathVariable Long id) {
+        return ApiResponse.ok(checkService.convertRecordToCollection(id));
     }
 
     @GetMapping("/{id}/export")

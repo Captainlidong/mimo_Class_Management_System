@@ -19,12 +19,13 @@
       <el-table-column prop="absentCount" label="未参与" width="90" />
       <el-table-column prop="invalidCount" label="无效" width="80" />
       <el-table-column prop="duplicateCount" label="重复" width="80" />
-      <el-table-column label="操作" width="320">
+      <el-table-column label="操作" width="330">
         <template #default="{ row }">
           <el-button link type="primary" @click="view(row)">查看</el-button>
+          <el-button link type="success" @click="rerun(row)">重新筛查</el-button>
+          <el-button link type="success" @click="convert(row)">转收集</el-button>
           <el-button link @click="openEdit(row)">改名/备注</el-button>
           <el-button link type="primary" @click="exportRow(row, 'xlsx')">Excel</el-button>
-          <el-button link type="primary" @click="exportRow(row, 'csv')">CSV</el-button>
           <el-button link type="danger" @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -38,12 +39,39 @@
           <div class="stat-item" style="background:#fff7ed"><div class="label">无效</div><div class="value">{{ detail.counts.invalid }}</div></div>
         </div>
         <p v-if="detail.remark" class="muted">备注：{{ detail.remark }}</p>
-        <h3>已参与</h3>
-        <div><span v-for="n in detail.participated" :key="n" class="name-chip">{{ n }}</span></div>
-        <h3>未参与</h3>
-        <div><span v-for="n in detail.absent" :key="n" class="name-chip absent">{{ n }}</span></div>
-        <h3>无效/异常</h3>
-        <div><span v-for="n in detail.invalid" :key="n" class="name-chip invalid">{{ n }}</span></div>
+        <div class="group-view-bar">
+          <el-select
+            v-model="groupViewId"
+            clearable
+            placeholder="按分组查看（可选）"
+            size="small"
+            style="width: 200px"
+            @change="loadGroupView"
+          >
+            <el-option v-for="g in groups" :key="g.id" :label="g.name" :value="g.id" />
+          </el-select>
+          <span v-if="groupView" class="muted">
+            分组「{{ groupView.group && groupView.group.name ? groupView.group.name : '' }}」：已参与 {{ groupView.participatedCount }} / 未参与 {{ groupView.absentCount }}
+          </span>
+        </div>
+        <template v-if="!groupView">
+          <h3>已参与</h3>
+          <div><span v-for="n in detail.participated" :key="n" class="name-chip">{{ n }}</span></div>
+          <h3>未参与</h3>
+          <div><span v-for="n in detail.absent" :key="n" class="name-chip absent">{{ n }}</span></div>
+          <h3>无效/异常</h3>
+          <div><span v-for="n in detail.invalid" :key="n" class="name-chip invalid">{{ n }}</span></div>
+        </template>
+        <template v-else>
+          <h3>该分组已参与</h3>
+          <div><span v-for="n in groupView.participated" :key="n" class="name-chip">{{ n }}</span><span v-if="!groupView.participated.length" class="muted">（无）</span></div>
+          <h3>该分组未参与</h3>
+          <div><span v-for="n in groupView.absent" :key="n" class="name-chip absent">{{ n }}</span><span v-if="!groupView.absent.length" class="muted">（无）</span></div>
+        </template>
+        <div class="rerun-bar">
+          <el-button type="success" plain @click="rerun({ id: detail.id, title: detail.title, taskId: detail.taskId })">重新筛查这份名单</el-button>
+          <el-button type="primary" plain @click="convert(detail)">未参与转收集任务</el-button>
+        </div>
       </template>
     </el-dialog>
 
@@ -67,14 +95,21 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 import api from '../api/client'
+import { useCheckStore } from '../stores/check'
 
+const router = useRouter()
+const checkStore = useCheckStore()
 const records = ref([])
 const tasks = ref([])
+const groups = ref([])
 const q = ref('')
 const taskId = ref(null)
 const detailVisible = ref(false)
 const detail = ref(null)
+const groupViewId = ref(null)
+const groupView = ref(null)
 const editVisible = ref(false)
 const editId = ref(null)
 const editForm = reactive({ title: '', remark: '' })
@@ -97,10 +132,71 @@ async function loadTasks() {
   tasks.value = data.data || []
 }
 
+async function loadGroups() {
+  const { data } = await api.get('/groups')
+  groups.value = data.data || []
+}
+
 async function view(row) {
   const { data } = await api.get(`/check-records/${row.id}`)
   detail.value = data.data
+  groupViewId.value = null
+  groupView.value = null
   detailVisible.value = true
+}
+
+async function loadGroupView() {
+  if (!groupViewId.value || !detail.value) {
+    groupView.value = null
+    return
+  }
+  const { data } = await api.get(`/groups/${groupViewId.value}/check-view`, {
+    params: { recordId: detail.value.recordId }
+  })
+  groupView.value = data.data
+}
+
+/** 重新筛查：把这份历史记录的原始名单回填到筛查页草稿（不修改原快照）。 */
+async function rerun(row) {
+  try {
+    const { data } = await api.get(`/check-records/${row.id}`)
+    checkStore.setText(data.data.rawText || '')
+    checkStore.setTitle(row.title)
+    checkStore.setTaskId(row.taskId ?? null)
+    checkStore.setResult(null)
+  } catch {
+    return
+  }
+  ElMessage.success('名单已回填到筛查页，可直接一键筛查')
+  router.push('/check')
+}
+
+/** 未参与名单一键转成补交收集任务。 */
+async function convert(detailRow) {
+  if (!detailRow.counts || detailRow.counts.absent === 0) {
+    ElMessage.warning('这份记录没有未参与同学，无需转收集')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `把 ${detailRow.counts.absent} 位未参与同学建成一个补交收集任务？`,
+      '转收集任务',
+      { type: 'success', confirmButtonText: '创建', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    const { data } = await api.post(`/check-records/${detailRow.id}/convert-to-collection`)
+    const unmatched = data.data.unmatched || []
+    ElMessage.success(
+      `已创建收集任务「${data.data.name}」（${data.data.total} 人）` +
+        (unmatched.length ? `，${unmatched.length} 人未能匹配名单` : '')
+    )
+    router.push('/collections')
+  } catch {
+    /* 拦截器已提示 */
+  }
 }
 
 function openEdit(row) {
@@ -149,5 +245,21 @@ function exportRow(row, format) {
 onMounted(() => {
   load()
   loadTasks()
+  loadGroups()
 })
 </script>
+
+<style scoped>
+.group-view-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.rerun-bar {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+}
+</style>

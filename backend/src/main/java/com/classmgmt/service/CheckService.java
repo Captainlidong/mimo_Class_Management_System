@@ -6,9 +6,11 @@ import com.classmgmt.dto.CheckRequest;
 import com.classmgmt.dto.CheckResultDTO;
 import com.classmgmt.repo.CheckRecordRepository;
 import com.classmgmt.repo.StudentRepository;
+import com.classmgmt.web.GlobalExceptionHandler;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
@@ -27,17 +29,23 @@ public class CheckService {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final TermService termService;
+    private final CollectionService collectionService;
+    private final OperationLogService operationLogService;
 
     public CheckService(StudentRepository studentRepository,
                         CheckRecordRepository checkRecordRepository,
                         ObjectMapper objectMapper,
                         TransactionTemplate transactionTemplate,
-                        TermService termService) {
+                        TermService termService,
+                        CollectionService collectionService,
+                        OperationLogService operationLogService) {
         this.studentRepository = studentRepository;
         this.checkRecordRepository = checkRecordRepository;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
         this.termService = termService;
+        this.collectionService = collectionService;
+        this.operationLogService = operationLogService;
     }
 
     public CheckResultDTO check(CheckRequest request) {
@@ -184,6 +192,48 @@ public class CheckService {
         } catch (Exception e) {
             return "[]";
         }
+    }
+
+    /** 把历史筛查记录的未参与名单一键转成收集任务（新任务归属当前学期）。 */
+    @Transactional
+    public Map<String, Object> convertRecordToCollection(Long recordId) {
+        CheckRecord record = checkRecordRepository.findById(recordId)
+                .orElseThrow(() -> GlobalExceptionHandler.notFound("核对记录不存在"));
+        List<String> absentNames = readJson(record.getAbsentJson());
+        Long rosterTermId = record.getTermId() == null ? termService.getActiveTermId() : record.getTermId();
+        Map<String, Long> byName = new LinkedHashMap<>();
+        for (Student s : studentRepository.findAllByTermIdOrderBySortOrderAscIdAsc(rosterTermId)) {
+            byName.putIfAbsent(NameNormalizer.normalize(s.getName()), s.getId());
+        }
+        List<Long> studentIds = new ArrayList<>();
+        List<String> unmatched = new ArrayList<>();
+        for (String raw : absentNames) {
+            String name = NameNormalizer.normalize(raw);
+            Long sid = byName.get(name);
+            if (sid == null) {
+                unmatched.add(raw);
+            } else if (!studentIds.contains(sid)) {
+                studentIds.add(sid);
+            }
+        }
+        if (studentIds.isEmpty()) {
+            throw GlobalExceptionHandler.badRequest("未参与名单中没有能匹配到基准名单的学生，无法转收集任务");
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", (record.getTitle() == null ? "未命名筛查" : record.getTitle()) + " 补交收集");
+        body.put("kind", "collect");
+        body.put("studentIds", studentIds);
+        body.put("remark", "由筛查记录「" + record.getTitle() + "」转换，未参与 " + absentNames.size() + " 人");
+        Map<String, Object> task = collectionService.createTask(body);
+        operationLogService.log("check.convert", "筛查",
+                "筛查记录「" + record.getTitle() + "」转为收集任务：未参与 " + studentIds.size()
+                        + " 人" + (unmatched.isEmpty() ? "" : "，" + unmatched.size() + " 人未匹配到名单"));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("taskId", ((Number) task.get("id")).longValue());
+        result.put("name", task.get("name"));
+        result.put("total", task.get("total"));
+        result.put("unmatched", unmatched);
+        return result;
     }
 
     private List<String> readJson(String json) {

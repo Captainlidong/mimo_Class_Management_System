@@ -20,6 +20,7 @@ function persist(state) {
         title: state.title,
         taskId: state.taskId,
         save: state.save,
+        remark: state.remark,
         result: state.result
       })
     )
@@ -36,6 +37,7 @@ export const useCheckStore = defineStore('check', {
       title: draft.title || '',
       taskId: draft.taskId ?? null,
       save: draft.save ?? true,
+      remark: draft.remark || '',
       result: draft.result || null
     }
   },
@@ -56,6 +58,10 @@ export const useCheckStore = defineStore('check', {
       this.save = v
       persist(this.$state)
     },
+    setRemark(v) {
+      this.remark = v
+      persist(this.$state)
+    },
     setResult(v) {
       this.result = v
       persist(this.$state)
@@ -69,6 +75,7 @@ export const useCheckStore = defineStore('check', {
       this.title = ''
       this.taskId = null
       this.save = true
+      this.remark = ''
       this.result = null
       persist(this.$state)
     }

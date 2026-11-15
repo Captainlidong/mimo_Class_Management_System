@@ -52,7 +52,7 @@ class CollectionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CollectionService(taskRepository, entryRepository, studentRepository, stubTermService());
+        service = new CollectionService(taskRepository, entryRepository, studentRepository, stubTermService(), org.mockito.Mockito.mock(OperationLogService.class));
     }
 
     private Student student(long id, String name, String no) {

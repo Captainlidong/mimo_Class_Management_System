@@ -21,15 +21,18 @@ public class HistoryService {
     private final LongTaskRepository longTaskRepository;
     private final CheckService checkService;
     private final TermService termService;
+    private final OperationLogService operationLogService;
 
     public HistoryService(CheckRecordRepository checkRecordRepository,
                           LongTaskRepository longTaskRepository,
                           CheckService checkService,
-                          TermService termService) {
+                          TermService termService,
+                          OperationLogService operationLogService) {
         this.checkRecordRepository = checkRecordRepository;
         this.longTaskRepository = longTaskRepository;
         this.checkService = checkService;
         this.termService = termService;
+        this.operationLogService = operationLogService;
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +80,7 @@ public class HistoryService {
         CheckRecord record = checkRecordRepository.findById(id)
                 .orElseThrow(() -> GlobalExceptionHandler.notFound("核对记录不存在"));
         termService.ensureWritable(record.getTermId());
+        operationLogService.log("check.record.delete", "筛查", "删除核对记录「" + record.getTitle() + "」");
         checkRecordRepository.delete(record);
     }
 

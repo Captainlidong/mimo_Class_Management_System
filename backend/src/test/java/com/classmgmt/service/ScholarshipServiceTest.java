@@ -50,7 +50,7 @@ class ScholarshipServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ScholarshipService(batchRepository, awardRepository, studentRepository, collectionService, stubTermService());
+        service = new ScholarshipService(batchRepository, awardRepository, studentRepository, collectionService, stubTermService(), org.mockito.Mockito.mock(OperationLogService.class));
     }
 
     private Student student(long id, String name, String no) {

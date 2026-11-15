@@ -44,6 +44,7 @@ class TermIntegrationTest {
         JsonNode before = terms();
         assertTrue(before.get("terms").size() >= 1, "至少有默认学期");
         Long originalView = before.get("viewTermId").asLong();
+        Long activeBefore = before.get("activeTermId").asLong();
 
         // 2. 在当前学期建一条待办
         Map<String, Object> todo = new HashMap<>();
@@ -106,7 +107,10 @@ class TermIntegrationTest {
             }
         }
         assertTrue(oldVisibleAgain, "切回旧学期应能查档看到原待办");
-        mockMvc.perform(post("/api/terms/" + newTermId + "/switch")).andExpect(status().isOk());
+        // 恢复浏览指针到可写学期（历史学期是只读的，留在上面会影响其他测试类的新增操作）
+        mockMvc.perform(post("/api/terms/" + activeBefore + "/switch")).andExpect(status().isOk());
+        // 恢复换届前的浏览指针，避免影响其他测试类（共享 H2 上下文）
+        mockMvc.perform(post("/api/terms/" + originalView + "/switch")).andExpect(status().isOk());
 
         // 7. 清理（新学期上下文，旧学期待办不可删属预期）
         mockMvc.perform(delete("/api/todos/" + todoId)).andExpect(status().isBadRequest());

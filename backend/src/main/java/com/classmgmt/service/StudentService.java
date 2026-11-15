@@ -32,19 +32,22 @@ public class StudentService {
     private final com.classmgmt.repo.GroupRepository groupRepository;
     private final AppProperties appProperties;
     private final TermService termService;
+    private final OperationLogService operationLogService;
 
     public StudentService(StudentRepository studentRepository,
                           SystemSettingRepository systemSettingRepository,
                           com.classmgmt.repo.GroupMemberRepository groupMemberRepository,
                           com.classmgmt.repo.GroupRepository groupRepository,
                           AppProperties appProperties,
-                          TermService termService) {
+                          TermService termService,
+                          OperationLogService operationLogService) {
         this.studentRepository = studentRepository;
         this.systemSettingRepository = systemSettingRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.groupRepository = groupRepository;
         this.appProperties = appProperties;
         this.termService = termService;
+        this.operationLogService = operationLogService;
     }
 
     @Transactional
@@ -151,6 +154,7 @@ public class StudentService {
             groupMemberRepository.flush();
         }
         studentRepository.saveAll(next);
+        operationLogService.log("roster.replace", "名单", "整表替换名单 " + next.size() + " 人");
         if (request.getLocked() != null) {
             setLocked(request.getLocked());
         }

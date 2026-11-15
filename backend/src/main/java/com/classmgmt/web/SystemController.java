@@ -48,6 +48,7 @@ public class SystemController {
     private final StudentService studentService;
     private final ObjectMapper objectMapper;
     private final com.classmgmt.service.TermService termService;
+    private final com.classmgmt.service.OperationLogService operationLogService;
     private final TermRepository termRepository;
     private final com.classmgmt.config.AppProperties appProperties;
 
@@ -67,6 +68,7 @@ public class SystemController {
                             StudentService studentService,
                             ObjectMapper objectMapper,
                             com.classmgmt.service.TermService termService,
+                            com.classmgmt.service.OperationLogService operationLogService,
                             TermRepository termRepository,
                             com.classmgmt.config.AppProperties appProperties) {
         this.studentRepository = studentRepository;
@@ -85,6 +87,7 @@ public class SystemController {
         this.studentService = studentService;
         this.objectMapper = objectMapper;
         this.termService = termService;
+        this.operationLogService = operationLogService;
         this.termRepository = termRepository;
         this.appProperties = appProperties;
     }
@@ -393,6 +396,7 @@ public class SystemController {
             } else if (body.get("locked") instanceof String s) {
                 studentService.setLocked(Boolean.parseBoolean(s));
             }
+            operationLogService.log("backup.restore", "系统", "从备份文件恢复全部数据");
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("terms", termRepository.count());

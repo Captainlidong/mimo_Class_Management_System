@@ -26,17 +26,20 @@ public class ScholarshipService {
     private final StudentRepository studentRepository;
     private final CollectionService collectionService;
     private final TermService termService;
+    private final OperationLogService operationLogService;
 
     public ScholarshipService(ScholarshipBatchRepository batchRepository,
                               ScholarshipAwardRepository awardRepository,
                               StudentRepository studentRepository,
                               CollectionService collectionService,
-                              TermService termService) {
+                              TermService termService,
+                              OperationLogService operationLogService) {
         this.batchRepository = batchRepository;
         this.awardRepository = awardRepository;
         this.studentRepository = studentRepository;
         this.collectionService = collectionService;
         this.termService = termService;
+        this.operationLogService = operationLogService;
     }
 
     // —— 批次 ——
@@ -311,6 +314,7 @@ public class ScholarshipService {
                 + (batch.getRemark() == null || batch.getRemark().isBlank() ? "" : "；" + batch.getRemark()));
         createBody.put("studentIds", awards.stream().map(ScholarshipAward::getStudentId).toList());
         Map<String, Object> task = collectionService.createTask(createBody);
+        operationLogService.log("scholarship.convert", "奖学金", "批次「" + batch.getName() + "」转为收集任务");
         Long taskId = (Long) task.get("id");
         for (ScholarshipAward a : awards) {
             if (Boolean.TRUE.equals(a.getFormReceived())) {

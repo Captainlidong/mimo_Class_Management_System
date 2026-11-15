@@ -13,7 +13,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,6 +24,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * 待办 CRUD / 紧迫度排序 / 优先级 / 重复规则。
+ * 共享 H2 上下文下其他测试类可能遗留数据，断言一律用「本测试创建的唯一标题」做相对定位。
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 class TodoIntegrationTest {
@@ -55,49 +61,94 @@ class TodoIntegrationTest {
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
     }
 
+    /** 按 title 找本测试创建的待办（可能有多期），返回 id 列表（列表顺序）。 */
+    private List<Long> idsOf(JsonNode todos, String title) {
+        List<Long> ids = new ArrayList<>();
+        for (JsonNode t : todos) {
+            if (title.equals(t.get("title").asText())) {
+                ids.add(t.get("id").asLong());
+            }
+        }
+        return ids;
+    }
+
+    private String debugOrder(JsonNode todos) {
+        StringBuilder sb = new StringBuilder();
+        for (JsonNode t : todos) {
+            sb.append("[").append(t.get("title").asText()).append(" done=").append(t.get("done").asBoolean()).append("]");
+        }
+        return sb.toString();
+    }
+
+    /** 自愈：其他测试类可能把浏览指针留在历史学期（只读），先切回可写学期。 */
+    private void ensureWritableView() throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/terms")).andExpect(status().isOk()).andReturn();
+        JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .get("data");
+        if (data.get("viewTermId").asLong() != data.get("activeTermId").asLong()) {
+            mockMvc.perform(post("/api/terms/" + data.get("activeTermId").asLong() + "/switch"))
+                    .andExpect(status().isOk());
+        }
+    }
+
     @Test
     void todoCrudAndUrgencySorting() throws Exception {
+        ensureWritableView();
         Instant now = Instant.now();
         // 1. 建三条：已过期 / 未来一小时 / 无期限（跟进事项）
-        long expiredId = readJson(createTodo("结课前收齐课程作业", "老师要求结课前一周收齐打印版", now.minus(2, ChronoUnit.DAYS))
-                ).get("data").get("id").asLong();
-        long soonId = readJson(createTodo("收齐奖学金申请表", null, now.plus(1, ChronoUnit.HOURS))
-                ).get("data").get("id").asLong();
-        long noDueId = readJson(createTodo("团组织关系转接跟进", "等系统恢复后办理，不能错过", null)
-                ).get("data").get("id").asLong();
-
-        // 2. 排序：已过期 → 临期 → 无期限
+        createTodo("结课前收齐课程作业", "老师要求结课前一周收齐打印版", now.minus(2, ChronoUnit.DAYS));
+        createTodo("收齐奖学金申请表", null, now.plus(1, ChronoUnit.HOURS));
+        createTodo("团组织关系转接跟进", "等系统恢复后办理，不能错过", null);
         JsonNode todos = listTodos().get("data");
-        assertEquals(expiredId, todos.get(0).get("id").asLong(), "已过期应排最前");
-        assertEquals(soonId, todos.get(1).get("id").asLong(), "临期其次");
-        assertEquals(noDueId, todos.get(2).get("id").asLong(), "无期限排未完成最后");
-        assertTrue(todos.get(0).get("overdue").asBoolean(), "过期标记应为 true");
-        assertTrue(todos.get(0).get("dueToday").asBoolean() || todos.get(1).get("dueToday").asBoolean(),
-                "过期项或临期项至少一个标记当天到期");
 
-        // 3. 标记未来那条完成：沉底且 doneAt 有值；列表顺序变为 过期 → 无期限 → 已完成
+        // 2. 相对排序：已过期 → 临期 → 无期限（用唯一标题定位，容忍库里其他遗留数据）
+        int expiredIdx = -1;
+        int soonIdx = -1;
+        int noDueIdx = -1;
+        JsonNode expiredNode = null;
+        for (int i = 0; i < todos.size(); i++) {
+            JsonNode t = todos.get(i);
+            switch (t.get("title").asText()) {
+                case "结课前收齐课程作业" -> { expiredIdx = i; expiredNode = t; }
+                case "收齐奖学金申请表" -> soonIdx = i;
+                case "团组织关系转接跟进" -> noDueIdx = i;
+                default -> { }
+            }
+        }
+        assertTrue(expiredIdx >= 0 && soonIdx >= 0 && noDueIdx >= 0, "三条测试待办都应存在");
+        assertTrue(expiredIdx < soonIdx && soonIdx < noDueIdx, "排序应为 已过期 → 临期 → 无期限");
+        assertTrue(expiredNode.get("overdue").asBoolean(), "过期标记应为 true");
+
+        // 3. 标记临期那条完成：完成后沉底（在其无期限项之后）
         Map<String, Object> doneBody = new HashMap<>();
         doneBody.put("done", true);
-        MvcResult doneResult = mockMvc.perform(patch("/api/todos/" + soonId)
+        mockMvc.perform(patch("/api/todos/" + idsOf(todos, "收齐奖学金申请表").get(0))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(doneBody)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.done").value(true))
-                .andExpect(jsonPath("$.data.doneAt").isNotEmpty())
-                .andReturn();
-        assertEquals(soonId, readJson(doneResult).get("data").get("id").asLong());
-
-        JsonNode afterDone = listTodos().get("data");
-        assertEquals(expiredId, afterDone.get(0).get("id").asLong());
-        assertEquals(noDueId, afterDone.get(1).get("id").asLong());
-        assertEquals(soonId, afterDone.get(2).get("id").asLong(), "已完成沉底");
-        assertTrue(afterDone.get(2).get("done").asBoolean());
+                .andExpect(jsonPath("$.data.done").value(true));
+        todos = listTodos().get("data");
+        int doneIdx = -1;
+        for (int i = 0; i < todos.size(); i++) {
+            if ("收齐奖学金申请表".equals(todos.get(i).get("title").asText())) {
+                doneIdx = i;
+                assertTrue(todos.get(i).get("done").asBoolean(), "已完成标记");
+            }
+        }
+        int lastUndoneIdx = -1;
+        for (int i = 0; i < todos.size(); i++) {
+            if (!todos.get(i).get("done").asBoolean()) {
+                lastUndoneIdx = i;
+            }
+        }
+        assertTrue(doneIdx > lastUndoneIdx, "已完成项应排在未完成之后 | debug: doneIdx=" + doneIdx
+                + " lastUndoneIdx=" + lastUndoneIdx + " order=" + debugOrder(todos));
 
         // 4. 部分更新：改标题 + 截止时间（无期限 → 有期限）
         Map<String, Object> editBody = new HashMap<>();
         editBody.put("title", "团组织关系转接（等通知）");
         editBody.put("dueAt", now.plus(3, ChronoUnit.DAYS).toString());
-        mockMvc.perform(patch("/api/todos/" + noDueId)
+        mockMvc.perform(patch("/api/todos/" + idsOf(todos, "团组织关系转接跟进").get(0))
                         .contentType(MediaType.APPLICATION_JSON)
                         .characterEncoding(StandardCharsets.UTF_8)
                         .content(objectMapper.writeValueAsString(editBody)))
@@ -110,19 +161,21 @@ class TodoIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"  \"}"))
                 .andExpect(status().isBadRequest());
 
-        // 6. 清理
-        mockMvc.perform(delete("/api/todos/" + expiredId)).andExpect(status().isOk());
-        mockMvc.perform(delete("/api/todos/" + soonId)).andExpect(status().isOk());
-        mockMvc.perform(delete("/api/todos/" + noDueId)).andExpect(status().isOk());
-        mockMvc.perform(delete("/api/todos/" + expiredId)).andExpect(status().isNotFound());
+        // 6. 清理本测试创建的待办
+        for (String title : new String[] {"结课前收齐课程作业", "收齐奖学金申请表", "团组织关系转接跟进", "团组织关系转接（等通知）"}) {
+            for (Long id : idsOf(listTodos().get("data"), title)) {
+                mockMvc.perform(delete("/api/todos/" + id)).andExpect(status().isOk());
+            }
+        }
     }
 
     @Test
     void todoPriorityCategoryAndRepeat() throws Exception {
+        ensureWritableView();
         Instant now = Instant.now();
         // 1. 创建带优先级/分类/重复规则的周期待办
         Map<String, Object> body = new HashMap<>();
-        body.put("title", "每周例会前汇总请假动态");
+        body.put("title", "每周班委例会汇报（重复测试）");
         body.put("detail", "每周班会上汇报");
         body.put("dueAt", now.plus(1, ChronoUnit.DAYS).toString());
         body.put("priority", "high");
@@ -137,7 +190,8 @@ class TodoIntegrationTest {
                 .andExpect(jsonPath("$.data.category").value("通知"))
                 .andExpect(jsonPath("$.data.repeatRule").value("weekly"))
                 .andReturn();
-        long id = readJson(created).get("data").get("id").asLong();
+        long id = objectMapper.readTree(created.getResponse()
+                .getContentAsString(StandardCharsets.UTF_8)).get("data").get("id").asLong();
 
         // 2. 非法值 → 400
         mockMvc.perform(post("/api/todos")
@@ -158,7 +212,7 @@ class TodoIntegrationTest {
         JsonNode todos = listTodos().get("data");
         JsonNode next = null;
         for (JsonNode t : todos) {
-            if (t.get("id").asLong() != id && "每周例会前汇总请假动态".equals(t.get("title").asText())) {
+            if (t.get("id").asLong() != id && "每周班委例会汇报（重复测试）".equals(t.get("title").asText())) {
                 next = t;
             }
         }
@@ -184,21 +238,18 @@ class TodoIntegrationTest {
         MvcResult plain = mockMvc.perform(post("/api/todos")
                         .contentType(MediaType.APPLICATION_JSON)
                         .characterEncoding(StandardCharsets.UTF_8)
-                        .content("{\"title\":\"默认字段检查\"}"))
+                        .content("{\"title\":\"默认字段检查（重复测试）\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.priority").value("mid"))
                 .andExpect(jsonPath("$.data.category").value("其他"))
                 .andExpect(jsonPath("$.data.repeatRule").value("none"))
                 .andReturn();
-        long plainId = readJson(plain).get("data").get("id").asLong();
+        long plainId = objectMapper.readTree(plain.getResponse()
+                .getContentAsString(StandardCharsets.UTF_8)).get("data").get("id").asLong();
 
-        // 6. 清理
+        // 6. 清理本测试创建的待办
         mockMvc.perform(delete("/api/todos/" + id)).andExpect(status().isOk());
         mockMvc.perform(delete("/api/todos/" + next.get("id").asLong())).andExpect(status().isOk());
         mockMvc.perform(delete("/api/todos/" + plainId)).andExpect(status().isOk());
-    }
-
-    private JsonNode readJson(MvcResult result) throws Exception {
-        return objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
     }
 }

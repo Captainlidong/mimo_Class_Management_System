@@ -88,6 +88,21 @@
 
     <!-- 运行状态 -->
     <div class="page-card" style="margin-bottom: 14px">
+      <h3>操作日志</h3>
+      <p class="muted" style="margin: 4px 0 10px">
+        关键动作审计（名单替换/锁定、备份恢复、换届、删除类操作等），保留 180 天，最多显示最近 200 条。
+      </p>
+      <el-table v-if="opLogs.length" :data="opLogs" size="small">
+        <el-table-column label="时间" width="170">
+          <template #default="{ row }">{{ fmtLogTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column prop="module" label="模块" width="110" />
+        <el-table-column prop="summary" label="动作" min-width="320" />
+      </el-table>
+      <p v-else class="muted" style="margin: 6px 0 0">暂无记录</p>
+    </div>
+
+    <div class="page-card" style="margin-bottom: 14px">
       <h3>运行状态</h3>
       <div class="info-grid">
         <div class="info-item">
@@ -149,7 +164,8 @@ import api from '../api/client'
 import DesktopIcon from '../components/DesktopIcon.vue'
 import { useTermStore } from '../stores/term'
 
-const version = '1.2.0'
+const version = '2.0.0'
+const opLogs = ref([])
 const exporting = ref(false)
 const importing = ref(false)
 const fileInput = ref(null)
@@ -182,6 +198,22 @@ function fmtLocal(value) {
   const d = value instanceof Date ? value : new Date(value)
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function fmtLogTime(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+  })
+}
+
+async function loadOpLogs() {
+  try {
+    const { data } = await api.get('/operation-logs')
+    opLogs.value = data.data.items || []
+  } catch {
+    /* 拦截器已提示 */
+  }
 }
 
 async function loadHealth() {
@@ -330,10 +362,12 @@ async function doRestore() {
 
 onMounted(() => {
   loadHealth()
+  loadOpLogs()
   term.refresh()
 })
 onActivated(() => {
   loadHealth()
+  loadOpLogs()
   term.refresh()
 })
 </script>
