@@ -28,7 +28,7 @@
 
     <div class="stat-row">
       <div class="stat-item"><div class="label">当前请假中</div><div class="value">{{ stats.activeCount || 0 }} 人</div></div>
-      <div class="stat-item" style="background:#fefce8"><div class="label">本月请假人次</div><div class="value">{{ stats.monthCount || 0 }}</div></div>
+      <div class="stat-item" style="background:#faf3e3"><div class="label">本月请假人次</div><div class="value">{{ stats.monthCount || 0 }}</div></div>
       <div class="stat-item" style="background:#f0fdf4"><div class="label">累计记录</div><div class="value">{{ stats.total || 0 }}</div></div>
     </div>
 

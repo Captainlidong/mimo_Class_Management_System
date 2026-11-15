@@ -14,4 +14,6 @@ public interface CollectionEntryRepository extends JpaRepository<CollectionEntry
     boolean existsByTaskIdAndStudentId(Long taskId, Long studentId);
 
     void deleteByTaskId(Long taskId);
+
+    long countBySubmittedTrue();
 }

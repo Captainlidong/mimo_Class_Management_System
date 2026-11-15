@@ -24,6 +24,18 @@ public class TodoItem {
 
     private Boolean done = Boolean.FALSE;
 
+    /** 优先级：high / mid（默认）/ low。 */
+    @Column(nullable = false, length = 8)
+    private String priority = "mid";
+
+    /** 分类：教学 / 活动 / 资料 / 通知 / 财务 / 其他（默认）。 */
+    @Column(nullable = false, length = 16)
+    private String category = "其他";
+
+    /** 重复规则：none（默认）/ daily / weekly / monthly。完成后自动生成下期。 */
+    @Column(name = "repeat_rule", nullable = false, length = 8)
+    private String repeatRule = "none";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -64,6 +76,30 @@ public class TodoItem {
 
     public void setDone(Boolean done) {
         this.done = done;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public void setPriority(String priority) {
+        this.priority = priority;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public String getRepeatRule() {
+        return repeatRule;
+    }
+
+    public void setRepeatRule(String repeatRule) {
+        this.repeatRule = repeatRule;
     }
 
     public Instant getCreatedAt() {

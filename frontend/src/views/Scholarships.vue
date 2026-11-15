@@ -68,7 +68,7 @@
         <div class="stat-item"><div class="label">获奖人数</div><div class="value">{{ awards.length }}</div></div>
         <div class="stat-item" style="background:#f0fdf4"><div class="label">已交表</div><div class="value">{{ receivedCount }}</div></div>
         <div class="stat-item" style="background:#fff7ed"><div class="label">未交表</div><div class="value">{{ awards.length - receivedCount }}</div></div>
-        <div class="stat-item" style="background:#fefce8"><div class="label">金额合计</div><div class="value">{{ amountSum ? amountSum + ' 元' : '—' }}</div></div>
+        <div class="stat-item" style="background:#faf3e3"><div class="label">金额合计</div><div class="value">{{ amountSum ? amountSum + ' 元' : '—' }}</div></div>
       </div>
       <div class="chart-row">
         <div class="chart-box">
@@ -220,7 +220,7 @@
       <div class="stat-row" style="margin-bottom: 10px">
         <div class="stat-item"><div class="label">全院数据行</div><div class="value">{{ parseResult ? parseResult.totalRows : 0 }}</div></div>
         <div class="stat-item" style="background:#f0fdf4"><div class="label">本班获奖命中</div><div class="value">{{ checkedCount }}</div></div>
-        <div class="stat-item" style="background:#fefce8"><div class="label">未获奖行（等级为空）</div><div class="value">{{ parseResult ? (parseResult.noAwardCount || 0) : 0 }}</div></div>
+        <div class="stat-item" style="background:#faf3e3"><div class="label">未获奖行（等级为空）</div><div class="value">{{ parseResult ? (parseResult.noAwardCount || 0) : 0 }}</div></div>
         <div class="stat-item" style="background:#fff7ed"><div class="label">未匹配/同名</div><div class="value">{{ (parseResult && parseResult.others ? parseResult.others.length : 0) }}</div></div>
       </div>
 
@@ -366,7 +366,7 @@ const amountSum = computed(() => {
 })
 
 // 批次详情可视化：等级分布 / 收表进度环形图
-const CHART_COLORS = ['#ff6b9d', '#5eead4', '#c4b5fd', '#fdba74', '#7dd3fc', '#f43f7a']
+const CHART_COLORS = ['#3e5c4b', '#8fb79b', '#d9a441', '#c96f5e', '#cbdacb', '#2f4838']
 const levelDonutItems = computed(() =>
   (currentBatch.value && currentBatch.value.levels ? currentBatch.value.levels : []).map((lv, i) => ({
     name: lv.name,
@@ -718,7 +718,7 @@ onDeactivated(() => {
 .chart-box {
   flex: 1;
   min-width: 280px;
-  border: 1px solid #ffe4ec;
+  border: 1px solid #e8e2d4;
   border-radius: 16px;
   padding: 10px 12px;
   background: #fffdfa;
@@ -741,7 +741,7 @@ onDeactivated(() => {
   font-weight: 600;
   color: var(--c-ink);
   background: #fff;
-  border: 1.5px dashed #ffb6cc;
+  border: 1.5px dashed #a9c0b0;
   border-radius: 14px;
   padding: 12px;
   cursor: pointer;
@@ -754,7 +754,7 @@ onDeactivated(() => {
 
 .attach-drop.is-dragover {
   border-color: var(--c-primary);
-  background: linear-gradient(145deg, #ffe8f2, #e8fffb);
+  background: linear-gradient(145deg, #f1f6f1, #e7f0e9);
   box-shadow: 0 12px 32px rgba(255, 107, 157, 0.22);
   transform: scale(1.01);
 }

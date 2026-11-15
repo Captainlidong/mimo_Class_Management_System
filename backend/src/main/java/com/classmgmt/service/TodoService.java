@@ -21,6 +21,12 @@ import java.util.Map;
 @Service
 public class TodoService {
 
+    private static final java.util.Set<String> PRIORITIES = java.util.Set.of("high", "mid", "low");
+    private static final java.util.Set<String> CATEGORIES =
+            java.util.Set.of("教学", "活动", "资料", "通知", "财务", "其他");
+    private static final java.util.Set<String> REPEAT_RULES =
+            java.util.Set.of("none", "daily", "weekly", "monthly");
+
     private final TodoItemRepository repository;
 
     public TodoService(TodoItemRepository repository) {
@@ -64,6 +70,9 @@ public class TodoService {
         m.put("detail", t.getDetail() == null ? "" : t.getDetail());
         m.put("dueAt", t.getDueAt());
         m.put("done", done);
+        m.put("priority", t.getPriority() == null ? "mid" : t.getPriority());
+        m.put("category", t.getCategory() == null ? "其他" : t.getCategory());
+        m.put("repeatRule", t.getRepeatRule() == null ? "none" : t.getRepeatRule());
         m.put("overdue", !done && t.getDueAt() != null && t.getDueAt().isBefore(now));
         m.put("dueToday", !done && t.getDueAt() != null && isSameLocalDay(t.getDueAt(), now));
         m.put("createdAt", t.getCreatedAt());
@@ -94,9 +103,12 @@ public class TodoService {
     public Map<String, Object> update(Long id, Map<String, Object> body) {
         TodoItem t = repository.findById(id)
                 .orElseThrow(() -> GlobalExceptionHandler.notFound("待办不存在"));
+        Boolean beforeDone = t.getDone();
         if (body == null
                 || (!body.containsKey("title") && !body.containsKey("detail")
-                && !body.containsKey("dueAt") && !body.containsKey("done"))) {
+                && !body.containsKey("dueAt") && !body.containsKey("done")
+                && !body.containsKey("priority") && !body.containsKey("category")
+                && !body.containsKey("repeatRule"))) {
             throw GlobalExceptionHandler.badRequest("没有需要更新的字段");
         }
         if (body.containsKey("title")) {
@@ -107,14 +119,48 @@ public class TodoService {
             t.setTitle(title);
         }
         applyOptionalFields(t, body);
+        boolean done;
         if (body.containsKey("done")) {
             Object v = body.get("done");
-            boolean done = Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
+            done = Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
             t.setDone(done);
             t.setDoneAt(done ? Instant.now() : null);
+        } else {
+            done = Boolean.TRUE.equals(beforeDone);
         }
         repository.save(t);
+        // 重复待办：本次勾选完成（且此前未完成）时，按规则自动生成下一期
+        if (done && !Boolean.TRUE.equals(beforeDone)) {
+            createNextOccurrence(t);
+        }
         return itemMap(t);
+    }
+
+    /** daily/weekly/monthly 且有截止时间的待办完成后，自动创建复制版下一期（dueAt 顺延）。 */
+    private void createNextOccurrence(TodoItem finished) {
+        String rule = finished.getRepeatRule() == null ? "none" : finished.getRepeatRule();
+        if ("none".equals(rule) || finished.getDueAt() == null) {
+            return;
+        }
+        ZoneId zone = ZoneId.systemDefault();
+        java.time.ZonedDateTime next = java.time.ZonedDateTime.ofInstant(finished.getDueAt(), zone);
+        switch (rule) {
+            case "daily" -> next = next.plusDays(1);
+            case "weekly" -> next = next.plusWeeks(1);
+            case "monthly" -> next = next.plusMonths(1);
+            default -> {
+                return;
+            }
+        }
+        TodoItem t = new TodoItem();
+        t.setTitle(finished.getTitle());
+        t.setDetail(finished.getDetail());
+        t.setDueAt(next.toInstant());
+        t.setPriority(finished.getPriority());
+        t.setCategory(finished.getCategory());
+        t.setRepeatRule(rule);
+        t.setCreatedAt(Instant.now());
+        repository.save(t);
     }
 
     private void applyOptionalFields(TodoItem t, Map<String, Object> body) {
@@ -123,6 +169,27 @@ public class TodoService {
         }
         if (body.containsKey("dueAt")) {
             t.setDueAt(parseTime(textOrNull(body.get("dueAt")), "截止时间"));
+        }
+        if (body.containsKey("priority")) {
+            String v = textOrNull(body.get("priority"));
+            if (v != null && !PRIORITIES.contains(v)) {
+                throw GlobalExceptionHandler.badRequest("优先级不正确：" + v);
+            }
+            t.setPriority(v == null ? "mid" : v);
+        }
+        if (body.containsKey("category")) {
+            String v = textOrNull(body.get("category"));
+            if (v != null && !CATEGORIES.contains(v)) {
+                throw GlobalExceptionHandler.badRequest("分类不正确：" + v);
+            }
+            t.setCategory(v == null ? "其他" : v);
+        }
+        if (body.containsKey("repeatRule")) {
+            String v = textOrNull(body.get("repeatRule"));
+            if (v != null && !REPEAT_RULES.contains(v)) {
+                throw GlobalExceptionHandler.badRequest("重复规则不正确：" + v);
+            }
+            t.setRepeatRule(v == null ? "none" : v);
         }
     }
 

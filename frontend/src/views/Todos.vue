@@ -1,16 +1,25 @@
 <template>
   <div class="page-card">
     <div class="toolbar">
-      <h2 class="page-title" style="margin: 0">⏰ 待办事务</h2>
+      <h2 class="page-title" style="margin: 0"><DesktopIcon name="clock" :size="18" />&nbsp;待办事务</h2>
       <span class="muted">未完成 {{ undoneCount }} 件 · 已完成 {{ doneCount }} 件</span>
       <div style="flex: 1"></div>
+      <el-select v-model="filterStatus" style="width: 110px" size="default">
+        <el-option label="全部状态" value="all" />
+        <el-option label="未完成" value="undone" />
+        <el-option label="已过期" value="overdue" />
+        <el-option label="已完成" value="done" />
+      </el-select>
+      <el-select v-model="filterCategory" style="width: 110px" clearable placeholder="全部分类">
+        <el-option v-for="c in CATEGORIES" :key="c" :label="c" :value="c" />
+      </el-select>
       <el-button type="primary" @click="openCreate">＋ 新建待办</el-button>
     </div>
     <p class="muted" style="margin-top: 0">
-      有期限的收齐任务、没解决不能忘的跟进事项都放这里。已过期排最前并标红，处理完点一下状态就归档沉底。
+      有期限的收齐任务、没解决不能忘的跟进事项都放这里。已过期排最前并标红，处理完点一下状态就归档沉底；设了重复规则的待办完成后会自动生成下一期。
     </p>
 
-    <el-table :data="todos" border stripe>
+    <el-table :data="filteredTodos" border stripe>
       <el-table-column label="状态" width="86">
         <template #default="{ row }">
           <el-tag
@@ -21,12 +30,23 @@
           >{{ row.done ? '已完成' : (row.overdue ? '已过期' : '待办') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="事项" min-width="280">
+      <el-table-column label="事项" min-width="270">
         <template #default="{ row }">
-          <div :style="row.done ? 'color: #9b93a9; text-decoration: line-through;' : 'font-weight: 600; color: #4a4258;'">
+          <div :style="row.done ? 'color: var(--c-ink-soft); text-decoration: line-through;' : 'font-weight: 600; color: var(--c-ink);'">
             {{ row.title }}
+            <span v-if="row.repeatRule && row.repeatRule !== 'none'" class="repeat-mark">↻ {{ repeatLabel(row.repeatRule) }}</span>
           </div>
           <div v-if="row.detail" class="muted" style="font-size: 12px; margin-top: 2px">{{ row.detail }}</div>
+        </template>
+      </el-table-column>
+      <el-table-column label="优先级" width="86">
+        <template #default="{ row }">
+          <el-tag :type="priorityType(row.priority)" size="small" effect="light">{{ priorityLabel(row.priority) }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="分类" width="80">
+        <template #default="{ row }">
+          <span class="muted">{{ row.category || '其他' }}</span>
         </template>
       </el-table-column>
       <el-table-column label="截止时间" width="190">
@@ -47,13 +67,25 @@
     </el-table>
 
     <!-- 新建 / 编辑 -->
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑待办' : '新建待办'" width="520px" append-to-body :close-on-click-modal="false">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑待办' : '新建待办'" width="540px" append-to-body :close-on-click-modal="false">
       <el-form label-width="90px">
         <el-form-item label="事项" required>
           <el-input v-model="form.title" maxlength="128" placeholder="如：结课前一周收齐课程作业" />
         </el-form-item>
         <el-form-item label="说明">
           <el-input v-model="form.detail" type="textarea" :rows="3" maxlength="512" placeholder="补充要求、来源、注意事项（可选）" />
+        </el-form-item>
+        <el-form-item label="优先级">
+          <el-radio-group v-model="form.priority">
+            <el-radio-button value="high">高</el-radio-button>
+            <el-radio-button value="mid">中</el-radio-button>
+            <el-radio-button value="low">低</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="分类">
+          <el-select v-model="form.category" style="width: 160px">
+            <el-option v-for="c in CATEGORIES" :key="c" :label="c" :value="c" />
+          </el-select>
         </el-form-item>
         <el-form-item label="截止时间">
           <el-date-picker
@@ -65,6 +97,17 @@
           />
           <div class="muted" style="font-size: 12px; width: 100%">
             填了就会按时间提醒排序；不填则作为无期限的跟进事项（如"等通知再办"）。
+          </div>
+        </el-form-item>
+        <el-form-item label="重复规则">
+          <el-select v-model="form.repeatRule" style="width: 160px">
+            <el-option label="不重复" value="none" />
+            <el-option label="每天" value="daily" />
+            <el-option label="每周" value="weekly" />
+            <el-option label="每月" value="monthly" />
+          </el-select>
+          <div class="muted" style="font-size: 12px; width: 100%">
+            设了重复且填了截止时间：完成后会自动生成下一期（如每周例会、每日体温上报）。
           </div>
         </el-form-item>
       </el-form>
@@ -80,14 +123,41 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api/client'
+import DesktopIcon from '../components/DesktopIcon.vue'
+
+const CATEGORIES = ['教学', '活动', '资料', '通知', '财务', '其他']
 
 const todos = ref([])
 const dialogVisible = ref(false)
 const submitting = ref(false)
-const form = reactive({ id: null, title: '', detail: '', dueAt: null })
+const filterStatus = ref('all')
+const filterCategory = ref('')
+const form = reactive({ id: null, title: '', detail: '', dueAt: null, priority: 'mid', category: '其他', repeatRule: 'none' })
 
 const undoneCount = computed(() => todos.value.filter((t) => !t.done).length)
 const doneCount = computed(() => todos.value.filter((t) => t.done).length)
+
+const filteredTodos = computed(() => {
+  return todos.value.filter((t) => {
+    if (filterStatus.value === 'undone' && t.done) return false
+    if (filterStatus.value === 'done' && !t.done) return false
+    if (filterStatus.value === 'overdue' && (t.done || !t.overdue)) return false
+    if (filterCategory.value && (t.category || '其他') !== filterCategory.value) return false
+    return true
+  })
+})
+
+function priorityLabel(p) {
+  return p === 'high' ? '高' : p === 'low' ? '低' : '中'
+}
+
+function priorityType(p) {
+  return p === 'high' ? 'danger' : p === 'low' ? 'info' : 'warning'
+}
+
+function repeatLabel(rule) {
+  return rule === 'daily' ? '每天' : rule === 'weekly' ? '每周' : rule === 'monthly' ? '每月' : ''
+}
 
 function fmt(iso) {
   if (!iso) return ''
@@ -129,6 +199,9 @@ function openCreate() {
   form.title = ''
   form.detail = ''
   form.dueAt = null
+  form.priority = 'mid'
+  form.category = '其他'
+  form.repeatRule = 'none'
   dialogVisible.value = true
 }
 
@@ -137,6 +210,9 @@ function openEdit(row) {
   form.title = row.title
   form.detail = row.detail || ''
   form.dueAt = row.dueAt ? row.dueAt.slice(0, 19) : null
+  form.priority = row.priority || 'mid'
+  form.category = row.category || '其他'
+  form.repeatRule = row.repeatRule || 'none'
   dialogVisible.value = true
 }
 
@@ -151,7 +227,10 @@ async function submit() {
     const payload = {
       title: form.title.trim(),
       detail: form.detail,
-      dueAt: form.dueAt || null
+      dueAt: form.dueAt || null,
+      priority: form.priority,
+      category: form.category,
+      repeatRule: form.repeatRule
     }
     if (form.id) {
       await api.patch(`/todos/${form.id}`, payload)
@@ -199,11 +278,17 @@ onMounted(load)
 
 <style scoped>
 .due-overdue {
-  color: #dc2626;
+  color: var(--c-danger);
   font-weight: 600;
 }
 .due-today {
-  color: #b45309;
+  color: #8a6412;
   font-weight: 600;
+}
+.repeat-mark {
+  font-size: 11px;
+  color: var(--c-ink-soft);
+  font-weight: 600;
+  margin-left: 4px;
 }
 </style>

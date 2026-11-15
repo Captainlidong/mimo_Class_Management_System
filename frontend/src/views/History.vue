@@ -34,7 +34,7 @@
       <template v-if="detail">
         <div class="stat-row">
           <div class="stat-item"><div class="label">已参与</div><div class="value">{{ detail.counts.participated }}</div></div>
-          <div class="stat-item" style="background:#fef2f2"><div class="label">未参与</div><div class="value">{{ detail.counts.absent }}</div></div>
+          <div class="stat-item" style="background:#faebe7"><div class="label">未参与</div><div class="value">{{ detail.counts.absent }}</div></div>
           <div class="stat-item" style="background:#fff7ed"><div class="label">无效</div><div class="value">{{ detail.counts.invalid }}</div></div>
         </div>
         <p v-if="detail.remark" class="muted">备注：{{ detail.remark }}</p>

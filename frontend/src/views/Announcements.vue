@@ -419,7 +419,7 @@ onDeactivated(() => {
   font-weight: 600;
   color: var(--c-ink);
   background: #fff;
-  border: 1.5px dashed #ffb6cc;
+  border: 1.5px dashed #a9c0b0;
   border-radius: 14px;
   padding: 10px 12px;
   cursor: pointer;
@@ -432,7 +432,7 @@ onDeactivated(() => {
 
 .attach-drop.is-dragover {
   border-color: var(--c-primary);
-  background: linear-gradient(145deg, #ffe8f2, #e8fffb);
+  background: linear-gradient(145deg, #f1f6f1, #e7f0e9);
   box-shadow: 0 12px 32px rgba(255, 107, 157, 0.22);
   transform: scale(1.01);
 }

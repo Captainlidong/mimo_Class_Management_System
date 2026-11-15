@@ -1,26 +1,84 @@
 <template>
   <el-container class="layout">
-    <el-aside width="220px" class="aside">
+    <el-aside :width="collapsed ? '64px' : '220px'" class="aside">
       <div class="brand">
         <div class="brand-title">
-          <span class="logo">🎀</span>
-          班级成员管理
+          <span class="logo"><DesktopIcon name="cat" :size="17" /></span>
+          <span v-if="!collapsed" class="brand-name">喵班</span>
         </div>
-        <div class="brand-sub">班长专属 · 名单核对</div>
+        <div v-if="!collapsed" class="brand-sub">喵陪班 · 班级事务管理系统</div>
       </div>
-      <el-menu :default-active="active" router class="menu">
-        <el-menu-item index="/check"><span class="menu-ico">✨</span> 名单筛查</el-menu-item>
-        <el-menu-item index="/students"><span class="menu-ico">🌸</span> 基准名单</el-menu-item>
-        <el-menu-item index="/history"><span class="menu-ico">📖</span> 历史记录</el-menu-item>
-        <el-menu-item index="/tasks"><span class="menu-ico">🎯</span> 长期任务</el-menu-item>
-        <el-menu-item index="/groups"><span class="menu-ico">🫧</span> 自定义分组</el-menu-item>
-        <el-menu-item index="/announcements"><span class="menu-ico">📣</span> 群发素材</el-menu-item>
-        <el-menu-item index="/leaves"><span class="menu-ico">🌙</span> 请假记录</el-menu-item>
-        <el-menu-item index="/todos"><span class="menu-ico">⏰</span> 待办事务</el-menu-item>
-        <el-menu-item index="/scholarships"><span class="menu-ico">🏆</span> 奖学金统计</el-menu-item>
-        <el-menu-item index="/collections"><span class="menu-ico">📥</span> 资料收集与分发</el-menu-item>
+      <el-menu
+        :default-active="active"
+        :collapse="collapsed"
+        :collapse-transition="false"
+        router
+        class="menu"
+      >
+        <el-menu-item index="/dashboard">
+          <span class="menu-ico"><DesktopIcon name="home" :size="18" /></span>
+          <template #title><span class="menu-text">工作台</span></template>
+        </el-menu-item>
+        <el-menu-item-group>
+          <template #title>核心事务</template>
+          <el-menu-item index="/check">
+            <span class="menu-ico"><DesktopIcon name="sparkle" :size="18" /></span>
+            <template #title><span class="menu-text">名单筛查</span></template>
+          </el-menu-item>
+          <el-menu-item index="/collections">
+            <span class="menu-ico"><DesktopIcon name="clipboard" :size="18" /></span>
+            <template #title><span class="menu-text">资料收集与分发</span></template>
+          </el-menu-item>
+          <el-menu-item index="/leaves">
+            <span class="menu-ico"><DesktopIcon name="moon" :size="18" /></span>
+            <template #title><span class="menu-text">请假记录</span></template>
+          </el-menu-item>
+          <el-menu-item index="/todos">
+            <span class="menu-ico"><DesktopIcon name="clock" :size="18" /></span>
+            <template #title><span class="menu-text">待办事务</span></template>
+          </el-menu-item>
+          <el-menu-item index="/scholarships">
+            <span class="menu-ico"><DesktopIcon name="trophy" :size="18" /></span>
+            <template #title><span class="menu-text">奖学金统计</span></template>
+          </el-menu-item>
+          <el-menu-item index="/announcements">
+            <span class="menu-ico"><DesktopIcon name="megaphone" :size="18" /></span>
+            <template #title><span class="menu-text">群发素材</span></template>
+          </el-menu-item>
+        </el-menu-item-group>
+        <el-menu-item-group>
+          <template #title>基础资料</template>
+          <el-menu-item index="/students">
+            <span class="menu-ico"><DesktopIcon name="users" :size="18" /></span>
+            <template #title><span class="menu-text">基准名单</span></template>
+          </el-menu-item>
+          <el-menu-item index="/history">
+            <span class="menu-ico"><DesktopIcon name="book" :size="18" /></span>
+            <template #title><span class="menu-text">历史记录</span></template>
+          </el-menu-item>
+          <el-menu-item index="/tasks">
+            <span class="menu-ico"><DesktopIcon name="calendar" :size="18" /></span>
+            <template #title><span class="menu-text">长期任务</span></template>
+          </el-menu-item>
+          <el-menu-item index="/groups">
+            <span class="menu-ico"><DesktopIcon name="grid" :size="18" /></span>
+            <template #title><span class="menu-text">自定义分组</span></template>
+          </el-menu-item>
+        </el-menu-item-group>
+        <el-menu-item-group>
+          <template #title>系统管理</template>
+          <el-menu-item index="/settings">
+            <span class="menu-ico"><DesktopIcon name="settings" :size="18" /></span>
+            <template #title><span class="menu-text">系统设置</span></template>
+          </el-menu-item>
+        </el-menu-item-group>
       </el-menu>
-      <div class="aside-footer">{{ footerText }}</div>
+      <div class="aside-collapse">
+        <button class="collapse-btn" :title="collapsed ? '展开菜单' : '收起菜单'" @click="collapsed = !collapsed">
+          <DesktopIcon name="chevron" :size="16" :style="collapsed ? '' : 'transform: rotate(180deg)'" />
+        </button>
+      </div>
+      <div v-if="!collapsed" class="aside-footer">{{ footerText }}</div>
     </el-aside>
     <el-container>
       <el-header class="header">
@@ -41,7 +99,7 @@
       <el-main class="main">
         <div v-if="!auth.statusLoaded" class="lock-pane muted">⏳ 正在检查登录状态…</div>
         <div v-else-if="auth.authRequired && !auth.loggedIn" class="lock-pane">
-          <div class="lock-icon">🔒</div>
+          <div class="lock-icon"><DesktopIcon name="bell" :size="46" /></div>
           <p class="muted">系统已启用登录保护，登录后才能使用各项功能</p>
           <el-button type="primary" @click="auth.openLogin()">立即登录</el-button>
         </div>
@@ -55,11 +113,19 @@
 
     <el-dialog
       v-model="auth.loginVisible"
-      title="登录 · 班级成员管理"
       width="400px"
       append-to-body
       :close-on-click-modal="false"
     >
+      <template #header>
+        <div class="login-head">
+          <span class="login-logo"><DesktopIcon name="cat" :size="26" /></span>
+          <div>
+            <div class="login-title">登录喵班</div>
+            <div class="login-sub">喵陪班 · 班级事务管理系统</div>
+          </div>
+        </div>
+      </template>
       <el-form label-width="70px" @submit.prevent>
         <el-form-item label="账号">
           <el-input v-model="form.username" placeholder="账号" autocomplete="username" />
@@ -106,12 +172,14 @@ import { useRoute } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
 import api, { onUnauthorized } from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import DesktopIcon from '../components/DesktopIcon.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
 const active = computed(() => route.path)
-const title = computed(() => route.meta.title || '班级成员管理系统')
-const footerText = computed(() => (auth.authRequired ? '🔒 已启用登录保护' : '🌷 默认仅本机访问'))
+const title = computed(() => route.meta.title || '喵班 · 班级事务管理系统')
+const footerText = computed(() => (auth.authRequired ? '🔒 已启用登录保护' : '默认仅本机访问'))
+const collapsed = ref(false)
 
 const form = reactive({ username: '', password: '', captchaCode: '' })
 const captchaImage = ref('')
@@ -179,7 +247,7 @@ async function notifyTodos() {
     if (!urgent.length) return
     const names = urgent.slice(0, 3).map((t) => t.title).join('、')
     ElNotification.warning({
-      title: '⏰ 待办提醒',
+      title: '待办提醒',
       message: `有 ${urgent.length} 件待办需要处理：${names}${urgent.length > 3 ? ' 等' : ''}`,
       duration: 8000
     })
@@ -200,8 +268,73 @@ onMounted(async () => {
   height: 100vh;
 }
 
+.brand-name {
+  letter-spacing: 0.06em;
+}
+
 .menu-ico {
-  margin-right: 6px;
+  margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.el-menu--collapse .menu-ico {
+  margin-right: 0;
+}
+
+.aside-collapse {
+  padding: 4px 10px 8px;
+  position: relative;
+  z-index: 1;
+  display: flex;
+}
+
+.collapse-btn {
+  width: 100%;
+  height: 30px;
+  border: 1px dashed var(--c-line);
+  background: transparent;
+  border-radius: 10px;
+  color: var(--c-ink-soft);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.collapse-btn:hover {
+  color: var(--c-primary-deep);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.login-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary-deep);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--c-ink);
+}
+
+.login-sub {
+  font-size: 12px;
+  color: var(--c-ink-soft);
+  margin-top: 2px;
 }
 
 .captcha-row {
@@ -228,7 +361,7 @@ onMounted(async () => {
 }
 
 .lock-icon {
-  font-size: 46px;
+  color: var(--c-ink-soft);
 }
 
 .page-enter-active,

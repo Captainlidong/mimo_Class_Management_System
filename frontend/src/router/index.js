@@ -5,8 +5,9 @@ const routes = [
   {
     path: '/',
     component: Layout,
-    redirect: '/check',
+    redirect: '/dashboard',
     children: [
+      { path: 'dashboard', name: 'dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: '工作台' } },
       { path: 'students', name: 'students', component: () => import('../views/Students.vue'), meta: { title: '基准名单' } },
       { path: 'check', name: 'check', component: () => import('../views/Check.vue'), meta: { title: '名单筛查' } },
       { path: 'history', name: 'history', component: () => import('../views/History.vue'), meta: { title: '历史记录' } },
@@ -16,7 +17,8 @@ const routes = [
       { path: 'leaves', name: 'leaves', component: () => import('../views/Leaves.vue'), meta: { title: '请假记录' } },
       { path: 'todos', name: 'todos', component: () => import('../views/Todos.vue'), meta: { title: '待办事务' } },
       { path: 'scholarships', name: 'scholarships', component: () => import('../views/Scholarships.vue'), meta: { title: '奖学金统计' } },
-      { path: 'collections', name: 'collections', component: () => import('../views/Collections.vue'), meta: { title: '资料收集与分发' } }
+      { path: 'collections', name: 'collections', component: () => import('../views/Collections.vue'), meta: { title: '资料收集与分发' } },
+      { path: 'settings', name: 'settings', component: () => import('../views/Settings.vue'), meta: { title: '系统设置' } }
     ]
   }
 ]

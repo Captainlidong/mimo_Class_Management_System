@@ -117,6 +117,87 @@ class TodoIntegrationTest {
         mockMvc.perform(delete("/api/todos/" + expiredId)).andExpect(status().isNotFound());
     }
 
+    @Test
+    void todoPriorityCategoryAndRepeat() throws Exception {
+        Instant now = Instant.now();
+        // 1. 创建带优先级/分类/重复规则的周期待办
+        Map<String, Object> body = new HashMap<>();
+        body.put("title", "每周例会前汇总请假动态");
+        body.put("detail", "每周班会上汇报");
+        body.put("dueAt", now.plus(1, ChronoUnit.DAYS).toString());
+        body.put("priority", "high");
+        body.put("category", "通知");
+        body.put("repeatRule", "weekly");
+        MvcResult created = mockMvc.perform(post("/api/todos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .characterEncoding(StandardCharsets.UTF_8)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.priority").value("high"))
+                .andExpect(jsonPath("$.data.category").value("通知"))
+                .andExpect(jsonPath("$.data.repeatRule").value("weekly"))
+                .andReturn();
+        long id = readJson(created).get("data").get("id").asLong();
+
+        // 2. 非法值 → 400
+        mockMvc.perform(post("/api/todos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .characterEncoding(StandardCharsets.UTF_8)
+                        .content("{\"title\":\"x\",\"priority\":\"urgent\"}"))
+                .andExpect(status().isBadRequest());
+
+        // 3. 完成周期待办 → 自动生成下期（dueAt 顺延一周，未完成，同优先级/分类/规则）
+        Map<String, Object> doneBody = new HashMap<>();
+        doneBody.put("done", true);
+        mockMvc.perform(patch("/api/todos/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(doneBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.done").value(true));
+
+        JsonNode todos = listTodos().get("data");
+        JsonNode next = null;
+        for (JsonNode t : todos) {
+            if (t.get("id").asLong() != id && "每周例会前汇总请假动态".equals(t.get("title").asText())) {
+                next = t;
+            }
+        }
+        assertTrue(next != null, "完成后应自动生成下一期");
+        assertEquals("high", next.get("priority").asText());
+        assertEquals("weekly", next.get("repeatRule").asText());
+        assertTrue(Instant.parse(next.get("dueAt").asText()).isAfter(now.plus(6, ChronoUnit.DAYS)),
+                "下期截止时间应顺延约一周");
+        assertTrue(!next.get("done").asBoolean());
+
+        // 4. 部分更新：只改优先级，其余字段保持
+        Map<String, Object> pBody = new HashMap<>();
+        pBody.put("priority", "low");
+        mockMvc.perform(patch("/api/todos/" + next.get("id").asLong())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .characterEncoding(StandardCharsets.UTF_8)
+                        .content(objectMapper.writeValueAsString(pBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.priority").value("low"))
+                .andExpect(jsonPath("$.data.category").value("通知"));
+
+        // 5. 默认值：不带新字段创建 → mid/其他/none
+        MvcResult plain = mockMvc.perform(post("/api/todos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .characterEncoding(StandardCharsets.UTF_8)
+                        .content("{\"title\":\"默认字段检查\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.priority").value("mid"))
+                .andExpect(jsonPath("$.data.category").value("其他"))
+                .andExpect(jsonPath("$.data.repeatRule").value("none"))
+                .andReturn();
+        long plainId = readJson(plain).get("data").get("id").asLong();
+
+        // 6. 清理
+        mockMvc.perform(delete("/api/todos/" + id)).andExpect(status().isOk());
+        mockMvc.perform(delete("/api/todos/" + next.get("id").asLong())).andExpect(status().isOk());
+        mockMvc.perform(delete("/api/todos/" + plainId)).andExpect(status().isOk());
+    }
+
     private JsonNode readJson(MvcResult result) throws Exception {
         return objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
     }

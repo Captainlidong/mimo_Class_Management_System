@@ -59,11 +59,11 @@
           <div class="label">基准人数</div>
           <div class="value">{{ result.counts.baseline }}</div>
         </div>
-        <div class="stat-item" style="background: #ecfdf5">
+        <div class="stat-item" style="background: #e7f0e9">
           <div class="label">已参与</div>
           <div class="value">{{ result.counts.participated }}</div>
         </div>
-        <div class="stat-item" style="background: #fef2f2">
+        <div class="stat-item" style="background: #faebe7">
           <div class="label">未参与</div>
           <div class="value">{{ result.counts.absent }}</div>
         </div>
@@ -71,7 +71,7 @@
           <div class="label">无效/异常</div>
           <div class="value">{{ result.counts.invalid }}</div>
         </div>
-        <div class="stat-item" style="background: #f5f3ff">
+        <div class="stat-item" style="background: #eef4ee">
           <div class="label">重复姓名</div>
           <div class="value">{{ result.counts.duplicates }}</div>
         </div>

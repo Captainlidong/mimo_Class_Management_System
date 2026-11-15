@@ -51,6 +51,10 @@ public class AuthController {
         data.put("authRequired", required);
         data.put("loggedIn", loggedIn);
         data.put("username", loggedIn ? appProperties.getAccessUsername() : "");
+        // 会话滑动续期发生在 isValid 内，校验通过即代表过期时间为 now + TTL
+        if (loggedIn && required) {
+            data.put("sessionExpiresAt", java.time.Instant.now().plus(AuthService.SESSION_TTL));
+        }
         return ApiResponse.ok(data);
     }
 

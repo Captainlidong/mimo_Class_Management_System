@@ -707,7 +707,7 @@ onDeactivated(() => {
   flex: 1;
   min-width: 260px;
   max-width: 330px;
-  border: 1px solid #ffe4ec;
+  border: 1px solid #e8e2d4;
   border-radius: 16px;
   padding: 8px 10px 0;
   background: #fffdfa;

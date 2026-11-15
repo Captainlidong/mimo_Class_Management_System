@@ -64,11 +64,11 @@
       </div>
       <template v-if="checkResult">
         <div class="stat-row">
-          <div class="stat-item" style="background:#ecfdf5">
+          <div class="stat-item" style="background:#e7f0e9">
             <div class="label">组内已参与</div>
             <div class="value">{{ checkResult.participatedCount }}</div>
           </div>
-          <div class="stat-item" style="background:#fef2f2">
+          <div class="stat-item" style="background:#faebe7">
             <div class="label">组内未参与</div>
             <div class="value">{{ checkResult.absentCount }}</div>
           </div>
