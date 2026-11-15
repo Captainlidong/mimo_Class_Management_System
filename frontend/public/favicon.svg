@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 喵班 favicon：深绿圆角底 + 奶油三花猫脸（橙耳灰斑点缀） -->
+  <rect width="64" height="64" rx="14" fill="#3E5C4B"/>
+  <path d="M18.5 31.5 L14.5 15.5 L27.5 21.5 Z" fill="#F7F2E7"/>
+  <path d="M45.5 31.5 L49.5 15.5 L36.5 21.5 Z" fill="#E8B4A0"/>
+  <circle cx="32" cy="38" r="15.5" fill="#F7F2E7"/>
+  <circle cx="43.5" cy="31" r="4.6" fill="#CBDACB"/>
+  <ellipse cx="25.5" cy="39" rx="2.4" ry="2.9" fill="#2F4838"/>
+  <ellipse cx="38.5" cy="39" rx="2.4" ry="2.9" fill="#2F4838"/>
+  <path d="M29.5 45.5 Q32 47.8 34.5 45.5" stroke="#2F4838" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <circle cx="20.5" cy="43.5" r="2.1" fill="#E8B4A0" opacity="0.85"/>
+  <circle cx="43.5" cy="43.5" r="2.1" fill="#E8B4A0" opacity="0.85"/>
+</svg>
