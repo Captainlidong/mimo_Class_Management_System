@@ -179,9 +179,27 @@ body,
   background: transparent !important;
   border-right: none !important;
   flex: 1;
+  /* 关键：允许菜单区收缩并独立滚动，窗口高度不足时侧栏底部菜单不会被裁掉 */
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #b9cdbe transparent;
   position: relative;
   z-index: 1;
   padding: 4px 10px;
+}
+
+.menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.menu::-webkit-scrollbar-thumb {
+  background: #b9cdbe;
+  border-radius: 99px;
+}
+
+.menu::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .menu .el-menu-item-group__title {
@@ -202,9 +220,9 @@ body,
 }
 
 .menu .el-menu-item {
-  height: 46px;
-  line-height: 46px;
-  margin: 6px 0;
+  height: 44px;
+  line-height: 44px;
+  margin: 3px 0;
   border-radius: 14px;
   color: var(--c-ink-soft);
   font-weight: 600;
