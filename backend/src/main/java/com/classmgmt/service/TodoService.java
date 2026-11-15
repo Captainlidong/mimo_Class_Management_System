@@ -28,9 +28,11 @@ public class TodoService {
             java.util.Set.of("none", "daily", "weekly", "monthly");
 
     private final TodoItemRepository repository;
+    private final TermService termService;
 
-    public TodoService(TodoItemRepository repository) {
+    public TodoService(TodoItemRepository repository, TermService termService) {
         this.repository = repository;
+        this.termService = termService;
     }
 
     /**
@@ -44,6 +46,9 @@ public class TodoService {
         List<TodoItem> undone = new ArrayList<>();
         List<TodoItem> done = new ArrayList<>();
         for (TodoItem t : all) {
+            if (!termService.matchesView(t.getTermId())) {
+                continue;
+            }
             (Boolean.TRUE.equals(t.getDone()) ? done : undone).add(t);
         }
         undone.sort(Comparator
@@ -87,6 +92,7 @@ public class TodoService {
 
     @Transactional
     public Map<String, Object> create(Map<String, Object> body) {
+        termService.ensureActiveView();
         String title = textOrNull(body.get("title"));
         if (title == null) {
             throw GlobalExceptionHandler.badRequest("待办标题不能为空");
@@ -94,6 +100,7 @@ public class TodoService {
         TodoItem t = new TodoItem();
         t.setTitle(title);
         applyOptionalFields(t, body);
+        t.setTermId(termService.getActiveTermId());
         t.setCreatedAt(Instant.now());
         repository.save(t);
         return itemMap(t);
@@ -103,6 +110,7 @@ public class TodoService {
     public Map<String, Object> update(Long id, Map<String, Object> body) {
         TodoItem t = repository.findById(id)
                 .orElseThrow(() -> GlobalExceptionHandler.notFound("待办不存在"));
+        termService.ensureWritable(t.getTermId());
         Boolean beforeDone = t.getDone();
         if (body == null
                 || (!body.containsKey("title") && !body.containsKey("detail")
@@ -195,10 +203,10 @@ public class TodoService {
 
     @Transactional
     public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw GlobalExceptionHandler.notFound("待办不存在");
-        }
-        repository.deleteById(id);
+        TodoItem t = repository.findById(id)
+                .orElseThrow(() -> GlobalExceptionHandler.notFound("待办不存在"));
+        termService.ensureWritable(t.getTermId());
+        repository.delete(t);
     }
 
     private Map<String, Object> itemMap(TodoItem t) {

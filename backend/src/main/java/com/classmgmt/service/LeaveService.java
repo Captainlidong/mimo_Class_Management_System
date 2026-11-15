@@ -32,10 +32,13 @@ public class LeaveService {
 
     private final LeaveRecordRepository leaveRecordRepository;
     private final StudentRepository studentRepository;
+    private final TermService termService;
 
-    public LeaveService(LeaveRecordRepository leaveRecordRepository, StudentRepository studentRepository) {
+    public LeaveService(LeaveRecordRepository leaveRecordRepository, StudentRepository studentRepository,
+                        TermService termService) {
         this.leaveRecordRepository = leaveRecordRepository;
         this.studentRepository = studentRepository;
+        this.termService = termService;
     }
 
     @Transactional(readOnly = true)
@@ -46,6 +49,9 @@ public class LeaveService {
         Map<Long, Student> studentMap = studentMap();
         List<Map<String, Object>> result = new ArrayList<>();
         for (LeaveRecord r : leaveRecordRepository.findAll()) {
+            if (!termService.matchesView(r.getTermId())) {
+                continue;
+            }
             if (studentId != null && !studentId.equals(r.getStudentId())) {
                 continue;
             }
@@ -72,6 +78,8 @@ public class LeaveService {
 
     @Transactional
     public List<Map<String, Object>> create(Map<String, Object> body) {
+        termService.ensureActiveView();
+        Long activeTermId = termService.getActiveTermId();
         Set<Long> studentIds = parseStudentIds(body.get("studentIds"));
         Map<Long, Student> studentMap = studentMap();
         for (Long sid : studentIds) {
@@ -99,6 +107,7 @@ public class LeaveService {
             r.setReason(reason);
             r.setApprover(approver);
             r.setRemark(remark);
+            r.setTermId(activeTermId);
             leaveRecordRepository.save(r);
             created.add(toRow(r, studentMap));
         }
@@ -108,6 +117,7 @@ public class LeaveService {
     @Transactional
     public Map<String, Object> update(Long id, Map<String, Object> body) {
         LeaveRecord r = find(id);
+        termService.ensureWritable(r.getTermId());
         if (body.containsKey("leaveType")) {
             r.setLeaveType(parseType(body.get("leaveType")));
         }
@@ -136,6 +146,7 @@ public class LeaveService {
     @Transactional
     public Map<String, Object> close(Long id, Map<String, Object> body) {
         LeaveRecord r = find(id);
+        termService.ensureWritable(r.getTermId());
         if (LeaveRecord.STATUS_CLOSED.equals(r.getStatus())) {
             throw GlobalExceptionHandler.conflict("该记录已销假");
         }
@@ -149,6 +160,7 @@ public class LeaveService {
     @Transactional
     public Map<String, Object> reopen(Long id) {
         LeaveRecord r = find(id);
+        termService.ensureWritable(r.getTermId());
         if (!LeaveRecord.STATUS_CLOSED.equals(r.getStatus())) {
             throw GlobalExceptionHandler.badRequest("该记录尚未销假，无需撤销");
         }
@@ -160,10 +172,10 @@ public class LeaveService {
 
     @Transactional
     public void delete(Long id) {
-        if (!leaveRecordRepository.existsById(id)) {
-            throw GlobalExceptionHandler.notFound("请假记录不存在");
-        }
-        leaveRecordRepository.deleteById(id);
+        LeaveRecord r = leaveRecordRepository.findById(id)
+                .orElseThrow(() -> GlobalExceptionHandler.notFound("请假记录不存在"));
+        termService.ensureWritable(r.getTermId());
+        leaveRecordRepository.delete(r);
     }
 
     @Transactional(readOnly = true)
@@ -180,6 +192,9 @@ public class LeaveService {
         long monthCount = 0;
         Map<Long, int[]> perStudent = new LinkedHashMap<>();
         for (LeaveRecord r : leaveRecordRepository.findAll()) {
+            if (!termService.matchesView(r.getTermId())) {
+                continue;
+            }
             if (LeaveRecord.STATUS_ACTIVE.equals(r.getStatus())) {
                 activeCount++;
             }

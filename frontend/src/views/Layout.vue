@@ -85,6 +85,30 @@
         <div class="header-title">{{ title }}</div>
         <div class="header-actions">
           <template v-if="auth.statusLoaded">
+            <el-select
+              v-if="term.loaded"
+              :model-value="term.viewTermId"
+              class="term-select"
+              @change="onTermChange"
+            >
+              <el-option
+                v-for="t in term.terms"
+                :key="t.id"
+                :value="t.id"
+                :label="t.name + (t.archived ? '（已归档）' : '')"
+              />
+            </el-select>
+            <el-tag v-if="term.browsingHistory" type="warning" size="small" effect="light">历史学期 · 只读</el-tag>
+            <el-badge
+              v-if="!auth.authRequired || auth.loggedIn"
+              :value="unread"
+              :hidden="!unread"
+              class="bell-badge"
+            >
+              <button class="bell-btn" title="消息中心" @click="openNotifications">
+                <DesktopIcon name="bell" :size="18" />
+              </button>
+            </el-badge>
             <template v-if="auth.authRequired">
               <template v-if="auth.loggedIn">
                 <span class="muted" style="font-size: 12px">已登录 · {{ auth.username }}</span>
@@ -163,6 +187,29 @@
         <el-button type="primary" :loading="submitting" @click="submit">登录</el-button>
       </template>
     </el-dialog>
+
+    <el-drawer v-model="notifyDrawer" title="消息中心" size="380px" append-to-body>
+      <div v-if="notifications.length">
+        <div class="notify-toolbar">
+          <el-button size="small" link type="primary" @click="markAllRead">全部已读</el-button>
+        </div>
+        <div
+          v-for="n in notifications"
+          :key="n.id"
+          class="notify-item"
+          :class="{ unread: !n.read }"
+          @click="readOne(n)"
+        >
+          <div class="notify-title-line">
+            <span v-if="!n.read" class="notify-dot"></span>
+            <span class="notify-title">{{ n.title }}</span>
+          </div>
+          <div v-if="n.body" class="muted notify-body">{{ n.body }}</div>
+          <div class="muted notify-time">{{ fmtTime(n.createdAt) }}</div>
+        </div>
+      </div>
+      <div v-else class="muted" style="text-align: center; padding: 40px 0">暂无消息，处理中的事项到期会出现在这里</div>
+    </el-drawer>
   </el-container>
 </template>
 
@@ -172,14 +219,66 @@ import { useRoute } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
 import api, { onUnauthorized } from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { useTermStore } from '../stores/term'
 import DesktopIcon from '../components/DesktopIcon.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
+const term = useTermStore()
 const active = computed(() => route.path)
 const title = computed(() => route.meta.title || '喵班 · 班级事务管理系统')
 const footerText = computed(() => (auth.authRequired ? '🔒 已启用登录保护' : '默认仅本机访问'))
 const collapsed = ref(false)
+
+const unread = ref(0)
+const notifications = ref([])
+const notifyDrawer = ref(false)
+
+function fmtTime(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+  })
+}
+
+async function loadNotifications() {
+  try {
+    const { data } = await api.get('/notifications')
+    notifications.value = data.data.items || []
+    unread.value = data.data.unread || 0
+  } catch (e) {
+    /* 未登录/网络问题静默 */
+  }
+}
+
+function openNotifications() {
+  notifyDrawer.value = true
+  loadNotifications()
+}
+
+async function markAllRead() {
+  try {
+    await api.post('/notifications/read-all')
+    await loadNotifications()
+  } catch (e) {
+    /* 拦截器已提示 */
+  }
+}
+
+async function readOne(n) {
+  if (n.read) return
+  try {
+    await api.post(`/notifications/${n.id}/read`)
+    n.read = true
+    unread.value = Math.max(0, unread.value - 1)
+  } catch (e) {
+    /* 拦截器已提示 */
+  }
+}
+
+function onTermChange(id) {
+  term.switchTo(id)
+}
 
 const form = reactive({ username: '', password: '', captchaCode: '' })
 const captchaImage = ref('')
@@ -226,6 +325,9 @@ async function submit() {
     form.password = ''
     form.captchaCode = ''
     ElMessage.success('登录成功')
+    // 登录成功后补拉学期上下文与通知（挂载时尚未登录，首拉会 401 静默失败）
+    await term.refresh()
+    loadNotifications()
   } catch {
     // 失败原因由拦截器统一提示；验证码是一次性的，失败后换一张
     loadCaptcha()
@@ -258,6 +360,8 @@ async function notifyTodos() {
 
 onMounted(async () => {
   await auth.refresh()
+  await term.refresh()
+  loadNotifications()
   auth.openLogin()
   notifyTodos()
 })
@@ -270,6 +374,87 @@ onMounted(async () => {
 
 .brand-name {
   letter-spacing: 0.06em;
+}
+
+.term-select {
+  width: 176px;
+}
+
+.term-select :deep(.el-select__wrapper) {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 0 1.5px var(--c-line) inset !important;
+  min-height: 34px;
+}
+
+.bell-badge {
+  display: inline-flex;
+}
+
+.bell-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--c-line);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--c-primary-deep);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.bell-btn:hover {
+  background: var(--c-primary-soft);
+}
+
+.notify-toolbar {
+  text-align: right;
+  margin-bottom: 6px;
+}
+
+.notify-item {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--c-line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.notify-item:hover,
+.notify-item.unread {
+  background: #fbf8f0;
+}
+
+.notify-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notify-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-danger);
+  flex-shrink: 0;
+}
+
+.notify-title {
+  font-weight: 700;
+  color: var(--c-ink);
+  font-size: 13.5px;
+}
+
+.notify-body {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.notify-time {
+  margin-top: 4px;
+  font-size: 11.5px;
 }
 
 .menu-ico {

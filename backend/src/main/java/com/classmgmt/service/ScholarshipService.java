@@ -25,15 +25,18 @@ public class ScholarshipService {
     private final ScholarshipAwardRepository awardRepository;
     private final StudentRepository studentRepository;
     private final CollectionService collectionService;
+    private final TermService termService;
 
     public ScholarshipService(ScholarshipBatchRepository batchRepository,
                               ScholarshipAwardRepository awardRepository,
                               StudentRepository studentRepository,
-                              CollectionService collectionService) {
+                              CollectionService collectionService,
+                              TermService termService) {
         this.batchRepository = batchRepository;
         this.awardRepository = awardRepository;
         this.studentRepository = studentRepository;
         this.collectionService = collectionService;
+        this.termService = termService;
     }
 
     // —— 批次 ——
@@ -42,6 +45,9 @@ public class ScholarshipService {
     public List<Map<String, Object>> listBatches() {
         List<Map<String, Object>> result = new ArrayList<>();
         for (ScholarshipBatch b : batchRepository.findAll()) {
+            if (!termService.matchesView(b.getTermId())) {
+                continue;
+            }
             List<ScholarshipAward> awards =
                     awardRepository.findByBatchIdOrderByCreatedAtAscIdAsc(b.getId());
             Map<String, Object> item = new LinkedHashMap<>();
@@ -60,6 +66,7 @@ public class ScholarshipService {
 
     @Transactional
     public Map<String, Object> createBatch(Map<String, Object> body) {
+        termService.ensureActiveView();
         String name = textOrNull(body.get("name"));
         if (name == null) {
             throw GlobalExceptionHandler.badRequest("批次名称不能为空");
@@ -67,6 +74,7 @@ public class ScholarshipService {
         ScholarshipBatch b = new ScholarshipBatch();
         b.setName(name);
         b.setRemark(textOrNull(body.get("remark")));
+        b.setTermId(termService.getActiveTermId());
         batchRepository.save(b);
         return batchSummary(b.getId());
     }
@@ -74,6 +82,7 @@ public class ScholarshipService {
     @Transactional
     public Map<String, Object> updateBatch(Long id, Map<String, Object> body) {
         ScholarshipBatch b = findBatch(id);
+        termService.ensureWritable(b.getTermId());
         if (body.containsKey("name")) {
             String name = textOrNull(body.get("name"));
             if (name == null) {
@@ -90,9 +99,8 @@ public class ScholarshipService {
 
     @Transactional
     public void deleteBatch(Long id) {
-        if (!batchRepository.existsById(id)) {
-            throw GlobalExceptionHandler.notFound("批次不存在");
-        }
+        ScholarshipBatch b = findBatch(id);
+        termService.ensureWritable(b.getTermId());
         awardRepository.deleteByBatchId(id);
         batchRepository.deleteById(id);
     }
@@ -198,6 +206,7 @@ public class ScholarshipService {
     @Transactional
     public List<Map<String, Object>> addAward(Long batchId, Map<String, Object> body, String sourceFile) {
         ScholarshipBatch batch = findBatch(batchId);
+        termService.ensureWritable(batch.getTermId());
         List<Map<String, Object>> created = new ArrayList<>();
         Object rowsObj = body.get("rows");
         if (rowsObj instanceof List<?> rows && !rows.isEmpty()) {
@@ -245,6 +254,7 @@ public class ScholarshipService {
     @Transactional
     public Map<String, Object> updateAward(Long id, Map<String, Object> body) {
         ScholarshipAward a = findAward(id);
+        termService.ensureWritable(findBatch(a.getBatchId()).getTermId());
         if (body.containsKey("awardName")) {
             String awardName = textOrNull(body.get("awardName"));
             a.setAwardName(awardName == null ? "未注明" : awardName);
@@ -261,15 +271,15 @@ public class ScholarshipService {
 
     @Transactional
     public void deleteAward(Long id) {
-        if (!awardRepository.existsById(id)) {
-            throw GlobalExceptionHandler.notFound("获奖记录不存在");
-        }
-        awardRepository.deleteById(id);
+        ScholarshipAward a = findAward(id);
+        termService.ensureWritable(findBatch(a.getBatchId()).getTermId());
+        awardRepository.delete(a);
     }
 
     @Transactional
     public Map<String, Object> markReceived(Long id, Map<String, Object> body) {
         ScholarshipAward a = findAward(id);
+        termService.ensureWritable(findBatch(a.getBatchId()).getTermId());
         boolean received = true;
         if (body != null && body.containsKey("received")) {
             received = Boolean.parseBoolean(String.valueOf(body.get("received")));
@@ -290,6 +300,7 @@ public class ScholarshipService {
     @Transactional
     public Map<String, Object> convertToCollection(Long batchId) {
         ScholarshipBatch batch = findBatch(batchId);
+        termService.ensureActiveView();
         List<ScholarshipAward> awards = awardRepository.findByBatchIdOrderByCreatedAtAscIdAsc(batchId);
         if (awards.isEmpty()) {
             throw GlobalExceptionHandler.badRequest("该批次没有获奖记录，无需转换");

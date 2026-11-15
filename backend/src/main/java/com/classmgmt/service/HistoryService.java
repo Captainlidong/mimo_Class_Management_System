@@ -20,13 +20,16 @@ public class HistoryService {
     private final CheckRecordRepository checkRecordRepository;
     private final LongTaskRepository longTaskRepository;
     private final CheckService checkService;
+    private final TermService termService;
 
     public HistoryService(CheckRecordRepository checkRecordRepository,
                           LongTaskRepository longTaskRepository,
-                          CheckService checkService) {
+                          CheckService checkService,
+                          TermService termService) {
         this.checkRecordRepository = checkRecordRepository;
         this.longTaskRepository = longTaskRepository;
         this.checkService = checkService;
+        this.termService = termService;
     }
 
     @Transactional(readOnly = true)
@@ -35,6 +38,9 @@ public class HistoryService {
         List<CheckRecord> records = checkRecordRepository.search(taskId, query);
         List<CheckRecordSummaryDTO> list = new ArrayList<>();
         for (CheckRecord r : records) {
+            if (!termService.matchesView(r.getTermId())) {
+                continue;
+            }
             list.add(toSummary(r));
         }
         return list;
@@ -51,6 +57,7 @@ public class HistoryService {
     public CheckRecordSummaryDTO patch(Long id, Map<String, String> body) {
         CheckRecord record = checkRecordRepository.findById(id)
                 .orElseThrow(() -> GlobalExceptionHandler.notFound("核对记录不存在"));
+        termService.ensureWritable(record.getTermId());
         if (body != null && body.containsKey("title")) {
             String title = body.get("title");
             if (title == null || title.isBlank()) {
@@ -67,10 +74,10 @@ public class HistoryService {
 
     @Transactional
     public void delete(Long id) {
-        if (!checkRecordRepository.existsById(id)) {
-            throw GlobalExceptionHandler.notFound("核对记录不存在");
-        }
-        checkRecordRepository.deleteById(id);
+        CheckRecord record = checkRecordRepository.findById(id)
+                .orElseThrow(() -> GlobalExceptionHandler.notFound("核对记录不存在"));
+        termService.ensureWritable(record.getTermId());
+        checkRecordRepository.delete(record);
     }
 
     private CheckRecordSummaryDTO toSummary(CheckRecord r) {

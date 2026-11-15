@@ -37,15 +37,18 @@ public class AnnouncementService {
     private final AnnouncementVersionRepository versionRepository;
     private final AnnouncementFileRepository fileRepository;
     private final AppProperties appProperties;
+    private final TermService termService;
 
     public AnnouncementService(AnnouncementRepository announcementRepository,
                                AnnouncementVersionRepository versionRepository,
                                AnnouncementFileRepository fileRepository,
-                               AppProperties appProperties) {
+                               AppProperties appProperties,
+                               TermService termService) {
         this.announcementRepository = announcementRepository;
         this.versionRepository = versionRepository;
         this.fileRepository = fileRepository;
         this.appProperties = appProperties;
+        this.termService = termService;
     }
 
     @Transactional(readOnly = true)
@@ -55,6 +58,9 @@ public class AnnouncementService {
         String st = trimToNull(status);
         List<Map<String, Object>> result = new ArrayList<>();
         for (Announcement a : announcementRepository.findAll()) {
+            if (!termService.matchesView(a.getTermId())) {
+                continue;
+            }
             if (cat != null && !cat.equals(a.getCategory())) {
                 continue;
             }
@@ -93,8 +99,10 @@ public class AnnouncementService {
 
     @Transactional
     public Map<String, Object> create(Map<String, Object> body) {
+        termService.ensureActiveView();
         Announcement a = new Announcement();
         applyFields(a, body, true);
+        a.setTermId(termService.getActiveTermId());
         announcementRepository.save(a);
         return detail(a.getId());
     }
@@ -102,6 +110,7 @@ public class AnnouncementService {
     @Transactional
     public Map<String, Object> update(Long id, Map<String, Object> body) {
         Announcement a = find(id);
+        termService.ensureWritable(a.getTermId());
         applyFields(a, body, false);
         announcementRepository.save(a);
         return detail(id);

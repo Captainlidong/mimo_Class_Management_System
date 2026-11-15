@@ -29,16 +29,22 @@ public class StudentService {
     private final StudentRepository studentRepository;
     private final SystemSettingRepository systemSettingRepository;
     private final com.classmgmt.repo.GroupMemberRepository groupMemberRepository;
+    private final com.classmgmt.repo.GroupRepository groupRepository;
     private final AppProperties appProperties;
+    private final TermService termService;
 
     public StudentService(StudentRepository studentRepository,
                           SystemSettingRepository systemSettingRepository,
                           com.classmgmt.repo.GroupMemberRepository groupMemberRepository,
-                          AppProperties appProperties) {
+                          com.classmgmt.repo.GroupRepository groupRepository,
+                          AppProperties appProperties,
+                          TermService termService) {
         this.studentRepository = studentRepository;
         this.systemSettingRepository = systemSettingRepository;
         this.groupMemberRepository = groupMemberRepository;
+        this.groupRepository = groupRepository;
         this.appProperties = appProperties;
+        this.termService = termService;
     }
 
     @Transactional
@@ -49,12 +55,15 @@ public class StudentService {
         if (studentRepository.count() > 0) {
             return;
         }
+        termService.ensureDefault();
+        Long termId = termService.getActiveTermId();
         List<Student> list = new ArrayList<>();
         for (int i = 0; i < SAMPLE_NAMES.length; i++) {
             Student s = new Student();
             s.setName(SAMPLE_NAMES[i]);
             s.setStudentNo(String.format("2024%02d", i + 1));
             s.setSortOrder(i + 1);
+            s.setTermId(termId);
             list.add(s);
         }
         studentRepository.saveAll(list);
@@ -78,7 +87,14 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public StudentListDTO list() {
-        List<Student> students = studentRepository.findAllByOrderBySortOrderAscIdAsc();
+        Long viewTermId = termService.getViewTermId();
+        List<Student> students = new ArrayList<>();
+        for (Student s : studentRepository.findAllByOrderBySortOrderAscIdAsc()) {
+            Long effective = s.getTermId() == null ? termService.getActiveTermId() : s.getTermId();
+            if (effective != null && effective.equals(viewTermId)) {
+                students.add(s);
+            }
+        }
         StudentListDTO dto = new StudentListDTO();
         dto.setLocked(isLocked());
         dto.setCount(students.size());
@@ -100,6 +116,8 @@ public class StudentService {
         if (isLocked()) {
             throw GlobalExceptionHandler.conflict("基准名单已锁定，请先解锁后再修改");
         }
+        termService.ensureActiveView();
+        Long activeTermId = termService.getActiveTermId();
         if (request.getStudents() == null || request.getStudents().isEmpty()) {
             throw GlobalExceptionHandler.badRequest("学生名单不能为空");
         }
@@ -115,14 +133,23 @@ public class StudentService {
             s.setName(name);
             s.setStudentNo(item.getStudentNo());
             s.setSortOrder(item.getSortOrder() == null ? order : item.getSortOrder());
+            s.setTermId(activeTermId);
             next.add(s);
             order++;
         }
-        studentRepository.deleteAll();
+        // 只清当前学期名单，历史学期存档不受影响；失效的分组成员关系同样仅限当前学期的分组
+        studentRepository.deleteByTermId(activeTermId);
         studentRepository.flush();
-        // 基准名单整表替换后，原分组成员关系全部失效，避免孤儿数据
-        groupMemberRepository.deleteAll();
-        groupMemberRepository.flush();
+        List<Long> activeGroupIds = new ArrayList<>();
+        for (com.classmgmt.domain.GroupInfo g : groupRepository.findAll()) {
+            if (termService.matchesView(g.getTermId())) {
+                activeGroupIds.add(g.getId());
+            }
+        }
+        if (!activeGroupIds.isEmpty()) {
+            groupMemberRepository.deleteByGroupIdIn(activeGroupIds);
+            groupMemberRepository.flush();
+        }
         studentRepository.saveAll(next);
         if (request.getLocked() != null) {
             setLocked(request.getLocked());
@@ -132,6 +159,14 @@ public class StudentService {
 
     @Transactional(readOnly = true)
     public List<Student> baseline() {
-        return studentRepository.findAllByOrderBySortOrderAscIdAsc();
+        Long viewTermId = termService.getViewTermId();
+        List<Student> students = new ArrayList<>();
+        for (Student s : studentRepository.findAllByOrderBySortOrderAscIdAsc()) {
+            Long effective = s.getTermId() == null ? termService.getActiveTermId() : s.getTermId();
+            if (effective != null && effective.equals(viewTermId)) {
+                students.add(s);
+            }
+        }
+        return students;
     }
 }

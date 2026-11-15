@@ -7,6 +7,42 @@
 
     <!-- 数据备份 -->
     <div class="page-card" style="margin-bottom: 14px">
+      <h3>学期管理</h3>
+      <div class="info-grid" style="margin-top: 10px">
+        <div class="info-item">
+          <div class="muted">当前学期</div>
+          <div class="info-value">{{ term.viewName || '—' }}{{ term.browsingHistory ? '（历史学期 · 只读浏览）' : '' }}</div>
+        </div>
+        <div class="info-item">
+          <div class="muted">学期总数</div>
+          <div class="info-value">{{ term.terms.length }}</div>
+        </div>
+      </div>
+      <div style="margin-top: 12px">
+        <el-button type="primary" @click="openTermCreate"><DesktopIcon name="plus" :size="16" />&nbsp;新建学期并换届</el-button>
+        <span class="muted" style="margin-left: 10px">换届后旧学期归档只读、新学期从空白名单开始；建议先导出一份备份。</span>
+      </div>
+      <el-table v-if="term.terms.length" :data="term.terms" size="small" style="margin-top: 12px">
+        <el-table-column prop="name" label="学期" min-width="200" />
+        <el-table-column label="起止" width="230">
+          <template #default="{ row }">{{ row.startDate || '—' }} ~ {{ row.endDate || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="状态" width="110">
+          <template #default="{ row }">
+            <el-tag v-if="row.id === term.activeTermId" type="success" size="small">当前</el-tag>
+            <el-tag v-else type="info" size="small">已归档</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="110">
+          <template #default="{ row }">
+            <el-button v-if="row.id !== term.viewTermId" link type="primary" @click="switchTerm(row)">切换浏览</el-button>
+            <span v-else class="muted">浏览中</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <div class="page-card" style="margin-bottom: 14px">
       <h3>数据备份与恢复</h3>
       <p class="muted" style="margin: 4px 0 12px">
         备份导出包含名单、筛查历史、分组、群发素材、请假、奖学金、收集任务等全部数据（JSON）。
@@ -86,23 +122,45 @@
         桌面端与移动端（H5 / APP）数据互通，同一账号登录。
       </p>
     </div>
+    <el-dialog v-model="termDialogVisible" title="新建学期并换届" width="460px" append-to-body :close-on-click-modal="false">
+      <el-form label-width="90px">
+        <el-form-item label="学期名称" required>
+          <el-input v-model="termForm.name" maxlength="64" placeholder="如：2026-2027 学年第一学期" />
+        </el-form-item>
+        <el-form-item label="开始日期">
+          <el-date-picker v-model="termForm.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="结束日期">
+          <el-date-picker v-model="termForm.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="可选" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="termDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="termCreating" @click="submitTermCreate">创建并换届</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { onActivated, onMounted, ref } from 'vue'
+import { onActivated, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api/client'
 import DesktopIcon from '../components/DesktopIcon.vue'
+import { useTermStore } from '../stores/term'
 
 const version = '1.2.0'
 const exporting = ref(false)
 const importing = ref(false)
 const fileInput = ref(null)
-const restorePreview = ref(null) // { exportedAt, items: [{key,label,count}], raw }
+const restorePreview = ref(null)
 const lastExportAt = ref(localStorage.getItem('mb_last_backup_at') || '')
 const health = ref({ up: false, passwordRequired: false, students: null, locked: false })
 const sessionExpiresAt = ref('')
+const term = useTermStore()
+const termDialogVisible = ref(false)
+const termCreating = ref(false)
+const termForm = reactive({ name: '', startDate: null, endDate: null })
 
 const KEY_LABELS = {
   students: '班级名单',
@@ -152,6 +210,45 @@ async function loadHealth() {
   } catch {
     sessionExpiresAt.value = ''
   }
+}
+
+function openTermCreate() {
+  termForm.name = ''
+  termForm.startDate = null
+  termForm.endDate = null
+  termDialogVisible.value = true
+}
+
+async function submitTermCreate() {
+  if (!termForm.name.trim()) {
+    ElMessage.warning('学期名称不能为空')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '换届将把当前学期归档（变为只读历史），新学期从空白名单开始。此操作建议先导出备份。确定继续吗？',
+      '换届确认',
+      { type: 'warning', confirmButtonText: '创建并换届', cancelButtonText: '再想想' }
+    )
+  } catch {
+    return
+  }
+  termCreating.value = true
+  try {
+    await term.createAndSwitch({
+      name: termForm.name.trim(),
+      startDate: termForm.startDate,
+      endDate: termForm.endDate
+    })
+  } catch (e) {
+    /* 拦截器已提示 */
+  } finally {
+    termCreating.value = false
+  }
+}
+
+async function switchTerm(row) {
+  await term.switchTo(row.id)
 }
 
 async function exportBackup() {
@@ -231,8 +328,14 @@ async function doRestore() {
   }
 }
 
-onMounted(loadHealth)
-onActivated(loadHealth)
+onMounted(() => {
+  loadHealth()
+  term.refresh()
+})
+onActivated(() => {
+  loadHealth()
+  term.refresh()
+})
 </script>
 
 <style scoped>

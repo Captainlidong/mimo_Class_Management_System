@@ -19,6 +19,17 @@ public class Announcement {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 所属学期（换届归档维度），由 TermService.ensureDefault/创建路径写入。 */
+    @Column(name = "term_id")
+    private Long termId;
+
+    public Long getTermId() {
+        return termId;
+    }
+
+    public void setTermId(Long termId) {
+        this.termId = termId;
+    }
     @Column(nullable = false, length = 128)
     private String title;
 

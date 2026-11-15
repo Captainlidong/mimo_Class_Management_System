@@ -40,9 +40,17 @@ class ScholarshipServiceTest {
 
     private ScholarshipService service;
 
+    private static TermService stubTermService() {
+        TermService ts = org.mockito.Mockito.mock(TermService.class, org.mockito.Mockito.withSettings().lenient());
+        org.mockito.Mockito.when(ts.matchesView(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        org.mockito.Mockito.when(ts.getActiveTermId()).thenReturn(1L);
+        org.mockito.Mockito.when(ts.getViewTermId()).thenReturn(1L);
+        return ts;
+    }
+
     @BeforeEach
     void setUp() {
-        service = new ScholarshipService(batchRepository, awardRepository, studentRepository, collectionService);
+        service = new ScholarshipService(batchRepository, awardRepository, studentRepository, collectionService, stubTermService());
     }
 
     private Student student(long id, String name, String no) {

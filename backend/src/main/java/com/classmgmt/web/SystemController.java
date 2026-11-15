@@ -13,6 +13,7 @@ import com.classmgmt.domain.LongTask;
 import com.classmgmt.domain.ScholarshipAward;
 import com.classmgmt.domain.ScholarshipBatch;
 import com.classmgmt.domain.Student;
+import com.classmgmt.domain.Term;
 import com.classmgmt.repo.*;
 import com.classmgmt.service.StudentService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -46,7 +47,8 @@ public class SystemController {
     private final com.classmgmt.repo.CollectionEntryRepository collectionEntryRepository;
     private final StudentService studentService;
     private final ObjectMapper objectMapper;
-
+    private final com.classmgmt.service.TermService termService;
+    private final TermRepository termRepository;
     private final com.classmgmt.config.AppProperties appProperties;
 
     public SystemController(StudentRepository studentRepository,
@@ -64,6 +66,8 @@ public class SystemController {
                             com.classmgmt.repo.CollectionEntryRepository collectionEntryRepository,
                             StudentService studentService,
                             ObjectMapper objectMapper,
+                            com.classmgmt.service.TermService termService,
+                            TermRepository termRepository,
                             com.classmgmt.config.AppProperties appProperties) {
         this.studentRepository = studentRepository;
         this.groupRepository = groupRepository;
@@ -80,6 +84,8 @@ public class SystemController {
         this.collectionEntryRepository = collectionEntryRepository;
         this.studentService = studentService;
         this.objectMapper = objectMapper;
+        this.termService = termService;
+        this.termRepository = termRepository;
         this.appProperties = appProperties;
     }
 
@@ -99,6 +105,7 @@ public class SystemController {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("exportedAt", Instant.now().toString());
         data.put("locked", studentService.isLocked());
+        data.put("terms", termRepository.findAllByOrderByCreatedAtDescIdDesc());
         data.put("students", studentRepository.findAllByOrderBySortOrderAscIdAsc());
         data.put("groups", groupRepository.findAll());
         data.put("groupMembers", groupMemberRepository.findAll());
@@ -120,6 +127,34 @@ public class SystemController {
     @PostMapping(value = "/backup/import", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Map<String, Object>> importBackup(@RequestBody Map<String, Object> body) {
         try {
+            Map<Long, Long> termIdMap = new HashMap<>();
+            // 学期最先行：旧备份（无 terms 字段）走 ensureDefault 兼容迁移
+            if (body.get("terms") instanceof List<?> terms) {
+                termRepository.deleteAll();
+                termRepository.flush();
+                Long newActiveTermId = null;
+                for (Object o : terms) {
+                    Term t = objectMapper.convertValue(o, Term.class);
+                    Long oldId = t.getId();
+                    t.setId(null);
+                    Term saved = termRepository.save(t);
+                    if (oldId != null) {
+                        termIdMap.put(oldId, saved.getId());
+                    }
+                    if (!Boolean.TRUE.equals(saved.getArchived()) && newActiveTermId == null) {
+                        newActiveTermId = saved.getId();
+                    }
+                }
+                // 恢复浏览指针：优先未归档学期，否则第一个学期
+                if (newActiveTermId == null && !termIdMap.isEmpty()) {
+                    newActiveTermId = termIdMap.values().iterator().next();
+                }
+                if (newActiveTermId != null) {
+                    termService.switchTo(newActiveTermId);
+                }
+            } else {
+                termService.ensureDefault();
+            }
             Map<Long, Long> studentIdMap = new HashMap<>();
             Map<Long, Long> groupIdMap = new HashMap<>();
             Map<Long, Long> taskIdMap = new HashMap<>();
@@ -134,8 +169,10 @@ public class SystemController {
                 groupMemberRepository.flush();
                 for (Object o : students) {
                     Student s = objectMapper.convertValue(o, Student.class);
+                    Long oldTermId = s.getTermId();
                     Long oldId = s.getId();
                     s.setId(null);
+                    s.setTermId(termIdMap.getOrDefault(oldTermId, oldTermId));
                     Student saved = studentRepository.save(s);
                     if (oldId != null) {
                         studentIdMap.put(oldId, saved.getId());
@@ -150,8 +187,10 @@ public class SystemController {
                 groupMemberRepository.flush();
                 for (Object o : groups) {
                     GroupInfo g = objectMapper.convertValue(o, GroupInfo.class);
+                    Long oldTermId = g.getTermId();
                     Long oldId = g.getId();
                     g.setId(null);
+                    g.setTermId(termIdMap.getOrDefault(oldTermId, oldTermId));
                     GroupInfo saved = groupRepository.save(g);
                     if (oldId != null) {
                         groupIdMap.put(oldId, saved.getId());
@@ -183,8 +222,10 @@ public class SystemController {
                 longTaskRepository.flush();
                 for (Object o : tasks) {
                     LongTask t = objectMapper.convertValue(o, LongTask.class);
+                    Long oldTermId = t.getTermId();
                     Long oldId = t.getId();
                     t.setId(null);
+                    t.setTermId(termIdMap.getOrDefault(oldTermId, oldTermId));
                     LongTask saved = longTaskRepository.save(t);
                     if (oldId != null) {
                         taskIdMap.put(oldId, saved.getId());
@@ -197,8 +238,10 @@ public class SystemController {
                 checkRecordRepository.flush();
                 for (Object o : records) {
                     CheckRecord r = objectMapper.convertValue(o, CheckRecord.class);
+                    Long oldTermId = r.getTermId();
                     Long oldTaskId = r.getTaskId();
                     r.setId(null);
+                    r.setTermId(termIdMap.getOrDefault(oldTermId, oldTermId));
                     if (oldTaskId != null) {
                         Long newTaskId = taskIdMap.get(oldTaskId);
                         r.setTaskId(newTaskId != null ? newTaskId : null);
@@ -216,8 +259,10 @@ public class SystemController {
                 announcementRepository.flush();
                 for (Object o : items) {
                     Announcement a = objectMapper.convertValue(o, Announcement.class);
+                    Long oldTermId = a.getTermId();
                     Long oldId = a.getId();
                     a.setId(null);
+                    a.setTermId(termIdMap.getOrDefault(oldTermId, oldTermId));
                     Announcement saved = announcementRepository.save(a);
                     if (oldId != null) {
                         announcementIdMap.put(oldId, saved.getId());
@@ -259,6 +304,8 @@ public class SystemController {
                 for (Object o : items) {
                     LeaveRecord r = objectMapper.convertValue(o, LeaveRecord.class);
                     r.setId(null);
+                    Long oldTermId = r.getTermId();
+                    r.setTermId(termIdMap.getOrDefault(oldTermId, oldTermId));
                     Long oldStudentId = r.getStudentId();
                     Long newStudentId = studentIdMap.getOrDefault(oldStudentId, oldStudentId);
                     if (!studentRepository.existsById(newStudentId)) {
@@ -276,8 +323,10 @@ public class SystemController {
                 scholarshipBatchRepository.flush();
                 for (Object o : items) {
                     ScholarshipBatch b = objectMapper.convertValue(o, ScholarshipBatch.class);
+                    Long oldTermId = b.getTermId();
                     Long oldId = b.getId();
                     b.setId(null);
+                    b.setTermId(termIdMap.getOrDefault(oldTermId, oldTermId));
                     ScholarshipBatch saved = scholarshipBatchRepository.save(b);
                     if (oldId != null) {
                         scholarshipBatchIdMap.put(oldId, saved.getId());
@@ -310,8 +359,10 @@ public class SystemController {
                 collectionTaskRepository.flush();
                 for (Object o : items) {
                     CollectionTask t = objectMapper.convertValue(o, CollectionTask.class);
+                    Long oldTermId = t.getTermId();
                     Long oldId = t.getId();
                     t.setId(null);
+                    t.setTermId(termIdMap.getOrDefault(oldTermId, oldTermId));
                     CollectionTask saved = collectionTaskRepository.save(t);
                     if (oldId != null) {
                         collectionTaskIdMap.put(oldId, saved.getId());
@@ -344,6 +395,7 @@ public class SystemController {
             }
 
             Map<String, Object> result = new LinkedHashMap<>();
+            result.put("terms", termRepository.count());
             result.put("students", studentRepository.count());
             result.put("groups", groupRepository.count());
             result.put("groupMembers", groupMemberRepository.count());

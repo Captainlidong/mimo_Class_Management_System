@@ -26,19 +26,24 @@ public class CheckService {
     private final CheckRecordRepository checkRecordRepository;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final TermService termService;
 
     public CheckService(StudentRepository studentRepository,
                         CheckRecordRepository checkRecordRepository,
                         ObjectMapper objectMapper,
-                        TransactionTemplate transactionTemplate) {
+                        TransactionTemplate transactionTemplate,
+                        TermService termService) {
         this.studentRepository = studentRepository;
         this.checkRecordRepository = checkRecordRepository;
         this.objectMapper = objectMapper;
         this.transactionTemplate = transactionTemplate;
+        this.termService = termService;
     }
 
     public CheckResultDTO check(CheckRequest request) {
-        List<Student> baseline = studentRepository.findAllByOrderBySortOrderAscIdAsc();
+        termService.ensureActiveView();
+        Long activeTermId = termService.getActiveTermId();
+        List<Student> baseline = studentRepository.findAllByTermIdOrderBySortOrderAscIdAsc(activeTermId);
         CheckResultDTO result = buildResult(request.getText(), baseline);
         String title = request.getTitle() == null || request.getTitle().isBlank()
                 ? "名单核对 " + Instant.now()
@@ -53,6 +58,7 @@ public class CheckService {
                 Long id = transactionTemplate.execute(status -> {
                     CheckRecord record = new CheckRecord();
                     record.setTaskId(request.getTaskId());
+                    record.setTermId(activeTermId);
                     record.setTitle(title);
                     record.setCheckedAt(Instant.parse(result.getCheckedAt()));
                     record.setRawText(truncate(request.getText(), 60_000));

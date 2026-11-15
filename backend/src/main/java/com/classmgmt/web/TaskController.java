@@ -5,6 +5,7 @@ import com.classmgmt.dto.CheckRecordSummaryDTO;
 import com.classmgmt.repo.CheckRecordRepository;
 import com.classmgmt.repo.LongTaskRepository;
 import com.classmgmt.service.HistoryService;
+import com.classmgmt.service.TermService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -18,31 +19,37 @@ public class TaskController {
     private final LongTaskRepository longTaskRepository;
     private final HistoryService historyService;
     private final CheckRecordRepository checkRecordRepository;
+    private final TermService termService;
 
     public TaskController(LongTaskRepository longTaskRepository,
                           HistoryService historyService,
-                          CheckRecordRepository checkRecordRepository) {
+                          CheckRecordRepository checkRecordRepository,
+                          TermService termService) {
         this.longTaskRepository = longTaskRepository;
         this.historyService = historyService;
         this.checkRecordRepository = checkRecordRepository;
+        this.termService = termService;
     }
 
     @GetMapping
     public ApiResponse<List<Map<String, Object>>> list() {
-        List<Map<String, Object>> items = longTaskRepository.findAll().stream().map(t -> {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", t.getId());
-            m.put("name", t.getName());
-            m.put("type", t.getType());
-            m.put("remark", t.getRemark());
-            m.put("recordCount", checkRecordRepository.countByTaskId(t.getId()));
-            return m;
-        }).toList();
+        List<Map<String, Object>> items = longTaskRepository.findAll().stream()
+                .filter(t -> termService.matchesView(t.getTermId()))
+                .map(t -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", t.getId());
+                    m.put("name", t.getName());
+                    m.put("type", t.getType());
+                    m.put("remark", t.getRemark());
+                    m.put("recordCount", checkRecordRepository.countByTaskId(t.getId()));
+                    return m;
+                }).toList();
         return ApiResponse.ok(items);
     }
 
     @PostMapping
     public ApiResponse<Map<String, Object>> create(@RequestBody Map<String, String> body) {
+        termService.ensureActiveView();
         String name = body.getOrDefault("name", "").trim();
         if (name.isEmpty()) {
             return ApiResponse.fail(400, "任务名称不能为空");
@@ -51,6 +58,7 @@ public class TaskController {
         task.setName(name);
         task.setType(body.getOrDefault("type", "自定义"));
         task.setRemark(body.get("remark"));
+        task.setTermId(termService.getActiveTermId());
         longTaskRepository.save(task);
         return ApiResponse.ok(Map.of(
                 "id", task.getId(),
@@ -66,6 +74,7 @@ public class TaskController {
                                                    @RequestBody Map<String, String> body) {
         LongTask task = longTaskRepository.findById(id)
                 .orElseThrow(() -> GlobalExceptionHandler.notFound("任务不存在"));
+        termService.ensureWritable(task.getTermId());
         if (body.containsKey("name")) {
             String name = body.get("name") == null ? "" : body.get("name").trim();
             if (name.isEmpty()) {
@@ -91,9 +100,10 @@ public class TaskController {
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
-        if (!longTaskRepository.existsById(id)) {
-            return ApiResponse.fail(404, "任务不存在");
-        }
+        LongTask task = longTaskRepository.findById(id)
+                .orElseThrow(() -> new GlobalExceptionHandler.ApiException(404,
+                        org.springframework.http.HttpStatus.NOT_FOUND, "任务不存在"));
+        termService.ensureWritable(task.getTermId());
         longTaskRepository.deleteById(id);
         return ApiResponse.ok(null);
     }

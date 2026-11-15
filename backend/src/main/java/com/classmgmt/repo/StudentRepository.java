@@ -7,4 +7,8 @@ import java.util.List;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
     List<Student> findAllByOrderBySortOrderAscIdAsc();
+
+    List<Student> findAllByTermIdOrderBySortOrderAscIdAsc(Long termId);
+
+    void deleteByTermId(Long termId);
 }

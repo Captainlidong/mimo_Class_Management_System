@@ -42,9 +42,17 @@ class CollectionServiceTest {
 
     private CollectionService service;
 
+    private static TermService stubTermService() {
+        TermService ts = org.mockito.Mockito.mock(TermService.class, org.mockito.Mockito.withSettings().lenient());
+        org.mockito.Mockito.when(ts.matchesView(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        org.mockito.Mockito.when(ts.getActiveTermId()).thenReturn(1L);
+        org.mockito.Mockito.when(ts.getViewTermId()).thenReturn(1L);
+        return ts;
+    }
+
     @BeforeEach
     void setUp() {
-        service = new CollectionService(taskRepository, entryRepository, studentRepository);
+        service = new CollectionService(taskRepository, entryRepository, studentRepository, stubTermService());
     }
 
     private Student student(long id, String name, String no) {

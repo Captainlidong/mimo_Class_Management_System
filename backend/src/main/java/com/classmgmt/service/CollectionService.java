@@ -29,13 +29,16 @@ public class CollectionService {
     private final CollectionTaskRepository taskRepository;
     private final CollectionEntryRepository entryRepository;
     private final StudentRepository studentRepository;
+    private final TermService termService;
 
     public CollectionService(CollectionTaskRepository taskRepository,
                              CollectionEntryRepository entryRepository,
-                             StudentRepository studentRepository) {
+                             StudentRepository studentRepository,
+                             TermService termService) {
         this.taskRepository = taskRepository;
         this.entryRepository = entryRepository;
         this.studentRepository = studentRepository;
+        this.termService = termService;
     }
 
     // —— 任务 ——
@@ -44,6 +47,9 @@ public class CollectionService {
     public List<Map<String, Object>> listTasks() {
         List<Map<String, Object>> result = new ArrayList<>();
         for (CollectionTask t : taskRepository.findAll()) {
+            if (!termService.matchesView(t.getTermId())) {
+                continue;
+            }
             List<CollectionEntry> entries = entryRepository.findByTaskId(t.getId());
             long received = entries.stream().filter(e -> Boolean.TRUE.equals(e.getSubmitted())).count();
             Map<String, Object> item = new LinkedHashMap<>();
@@ -64,6 +70,7 @@ public class CollectionService {
     /** studentIds 为空/缺省时默认全班（按基准名单顺序）；显式传入则去重并校验存在。 */
     @Transactional
     public Map<String, Object> createTask(Map<String, Object> body) {
+        termService.ensureActiveView();
         String name = textOrNull(body.get("name"));
         if (name == null) {
             throw GlobalExceptionHandler.badRequest("任务名称不能为空");
@@ -105,6 +112,7 @@ public class CollectionService {
         task.setKind(textOrNull(body.get("kind")));
         task.setRemark(textOrNull(body.get("remark")));
         task.setDeadline(parseTime(textOrNull(body.get("deadline")), "截止日期"));
+        task.setTermId(termService.getActiveTermId());
         taskRepository.save(task);
 
         for (Student s : members) {
@@ -119,6 +127,7 @@ public class CollectionService {
     @Transactional
     public Map<String, Object> updateTask(Long id, Map<String, Object> body) {
         CollectionTask t = findTask(id);
+        termService.ensureWritable(t.getTermId());
         if (body.containsKey("name")) {
             String name = textOrNull(body.get("name"));
             if (name == null) {
@@ -141,9 +150,9 @@ public class CollectionService {
 
     @Transactional
     public void deleteTask(Long id) {
-        if (!taskRepository.existsById(id)) {
-            throw GlobalExceptionHandler.notFound("任务不存在");
-        }
+        CollectionTask t = taskRepository.findById(id)
+                .orElseThrow(() -> GlobalExceptionHandler.notFound("任务不存在"));
+        termService.ensureWritable(t.getTermId());
         entryRepository.deleteByTaskId(id);
         taskRepository.deleteById(id);
     }

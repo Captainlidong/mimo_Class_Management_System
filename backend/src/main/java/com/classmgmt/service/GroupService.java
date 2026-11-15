@@ -23,18 +23,26 @@ public class GroupService {
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final StudentRepository studentRepository;
+    private final TermService termService;
 
     public GroupService(GroupRepository groupRepository,
                         GroupMemberRepository groupMemberRepository,
-                        StudentRepository studentRepository) {
+                        StudentRepository studentRepository,
+                        TermService termService) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.studentRepository = studentRepository;
+        this.termService = termService;
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> list() {
-        List<GroupInfo> groups = groupRepository.findAll();
+        List<GroupInfo> groups = new ArrayList<>();
+        for (GroupInfo g : groupRepository.findAll()) {
+            if (termService.matchesView(g.getTermId())) {
+                groups.add(g);
+            }
+        }
         Map<Long, Student> studentMap = studentRepository.findAll().stream()
                 .collect(Collectors.toMap(Student::getId, s -> s));
         List<Map<String, Object>> result = new ArrayList<>();
@@ -64,6 +72,7 @@ public class GroupService {
 
     @Transactional
     public Map<String, Object> create(Map<String, Object> body) {
+        termService.ensureActiveView();
         String name = body.get("name") == null ? "" : String.valueOf(body.get("name")).trim();
         if (name.isEmpty()) {
             throw GlobalExceptionHandler.badRequest("分组名称不能为空");
@@ -71,6 +80,7 @@ public class GroupService {
         GroupInfo g = new GroupInfo();
         g.setName(name);
         g.setRemark(body.get("remark") == null ? null : String.valueOf(body.get("remark")));
+        g.setTermId(termService.getActiveTermId());
         groupRepository.save(g);
         if (body.get("studentIds") instanceof List<?> ids) {
             setMembers(g.getId(), ids.stream().map(o -> Long.valueOf(String.valueOf(o))).toList());
@@ -82,6 +92,7 @@ public class GroupService {
     public Map<String, Object> update(Long id, Map<String, Object> body) {
         GroupInfo g = groupRepository.findById(id)
                 .orElseThrow(() -> GlobalExceptionHandler.notFound("分组不存在"));
+        termService.ensureWritable(g.getTermId());
         if (body.containsKey("name")) {
             String name = body.get("name") == null ? "" : String.valueOf(body.get("name")).trim();
             if (name.isEmpty()) {
@@ -101,9 +112,9 @@ public class GroupService {
 
     @Transactional
     public void delete(Long id) {
-        if (!groupRepository.existsById(id)) {
-            throw GlobalExceptionHandler.notFound("分组不存在");
-        }
+        GroupInfo g = groupRepository.findById(id)
+                .orElseThrow(() -> GlobalExceptionHandler.notFound("分组不存在"));
+        termService.ensureWritable(g.getTermId());
         groupMemberRepository.deleteByGroupId(id);
         groupRepository.deleteById(id);
     }
