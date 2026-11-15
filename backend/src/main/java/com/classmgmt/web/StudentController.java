@@ -70,6 +70,18 @@ public class StudentController {
         return ApiResponse.ok(studentService.list());
     }
 
+    /** 标记离班（软移出：物理保留，历史引用不受影响）。 */
+    @PostMapping("/{id}/mark-leave")
+    public ApiResponse<StudentListDTO.StudentDTO> markLeave(@PathVariable Long id) {
+        return ApiResponse.ok(studentService.markLeave(id));
+    }
+
+    /** 恢复在班。 */
+    @PostMapping("/{id}/restore")
+    public ApiResponse<StudentListDTO.StudentDTO> restore(@PathVariable Long id) {
+        return ApiResponse.ok(studentService.restore(id));
+    }
+
     @GetMapping("/status")
     public ApiResponse<Map<String, Object>> status() {
         StudentListDTO list = studentService.list();

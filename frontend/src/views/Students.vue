@@ -3,7 +3,7 @@
     <div class="toolbar">
       <h2 class="page-title" style="margin: 0">🌸 基准名单</h2>
       <el-tag :type="locked ? 'danger' : 'success'">{{ locked ? '已锁定' : '未锁定' }}</el-tag>
-      <span class="muted">共 {{ students.length }} 人</span>
+      <span class="muted">在班 {{ activeCount }} 人 · 离班 {{ leftCount }} 人</span>
       <div style="flex: 1"></div>
       <el-button v-if="locked" type="warning" @click="unlock">解锁修改</el-button>
       <el-button v-else type="primary" @click="lock">锁定名单</el-button>
@@ -78,23 +78,48 @@
 
     <div class="toolbar">
       <el-input v-model="keyword" placeholder="搜索姓名 / 学号" clearable style="width: 220px" />
+      <el-select v-model="statusFilter" clearable placeholder="全部状态" style="width: 120px">
+        <el-option label="在班" value="in_school" />
+        <el-option label="离班" value="left" />
+      </el-select>
       <span class="muted">显示 {{ filteredStudents.length }} / {{ students.length }}</span>
     </div>
 
-    <el-table :data="filteredStudents" border stripe>
+    <el-table :data="filteredStudents" border stripe :row-class-name="rowClass">
       <el-table-column type="index" label="#" width="60" />
       <el-table-column label="姓名" min-width="140">
         <template #default="{ row }">
-          <el-input v-model="row.name" :disabled="locked" />
+          <el-input v-model="row.name" :disabled="locked || row.status === 'left'" />
         </template>
       </el-table-column>
       <el-table-column label="学号（可选）" min-width="140">
         <template #default="{ row }">
-          <el-input v-model="row.studentNo" :disabled="locked" />
+          <el-input v-model="row.studentNo" :disabled="locked || row.status === 'left'" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="90">
+      <el-table-column label="状态" width="90">
         <template #default="{ row }">
+          <el-tag :type="row.status === 'left' ? 'info' : 'success'" size="small">
+            {{ row.status === 'left' ? '离班' : '在班' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="170">
+        <template #default="{ row }">
+          <el-button
+            v-if="row.status === 'left'"
+            link
+            type="primary"
+            :disabled="locked"
+            @click="restoreStudent(row)"
+          >恢复在班</el-button>
+          <el-button
+            v-else
+            link
+            type="warning"
+            :disabled="locked"
+            @click="markLeave(row)"
+          >标记离班</el-button>
           <el-button link type="danger" :disabled="locked" @click="removeRow(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -133,6 +158,7 @@ const locked = ref(false)
 const students = ref([])
 const pasteText = ref('')
 const keyword = ref('')
+const statusFilter = ref(null)
 const fileInput = ref(null)
 const parseInfo = ref('')
 const previewVisible = ref(false)
@@ -169,13 +195,50 @@ async function onDrop(e) {
 
 const filteredStudents = computed(() => {
   const k = keyword.value.trim().toLowerCase()
-  if (!k) return students.value
-  return students.value.filter(
-    (s) =>
+  const sf = statusFilter.value
+  return students.value.filter((s) => {
+    const status = s.status || 'in_school'
+    if (sf && status !== sf) return false
+    if (!k) return true
+    return (
       (s.name || '').toLowerCase().includes(k) ||
       (s.studentNo || '').toLowerCase().includes(k)
-  )
+    )
+  })
 })
+
+const activeCount = computed(
+  () => students.value.filter((s) => (s.status || 'in_school') !== 'left').length
+)
+const leftCount = computed(
+  () => students.value.filter((s) => (s.status || 'in_school') === 'left').length
+)
+
+function rowClass({ row }) {
+  return (row.status || 'in_school') === 'left' ? 'left-row' : ''
+}
+
+/** 单行即时标记离班/恢复在班（独立端点，无需点保存名单）。 */
+async function markLeave(row) {
+  try {
+    await ElMessageBox.confirm(
+      `把「${row.name}」标记为离班？历史记录保留，筛查基准将不再包含该学生。`,
+      '标记离班',
+      { type: 'warning', confirmButtonText: '标记离班', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  const { data } = await api.post(`/students/${row.id}/mark-leave`)
+  row.status = data.data.status
+  ElMessage.success(`已标记「${row.name}」离班`)
+}
+
+async function restoreStudent(row) {
+  const { data } = await api.post(`/students/${row.id}/restore`)
+  row.status = data.data.status
+  ElMessage.success(`已恢复「${row.name}」在班`)
+}
 
 async function load() {
   const { data } = await api.get('/students')
@@ -184,7 +247,8 @@ async function load() {
     id: s.id,
     name: s.name,
     studentNo: s.studentNo || '',
-    sortOrder: s.sortOrder
+    sortOrder: s.sortOrder,
+    status: s.status || 'in_school'
   }))
   refreshDupWarn()
 }
@@ -395,7 +459,8 @@ async function saveAll() {
     students: students.value.map((s, idx) => ({
       name: (s.name || '').trim(),
       studentNo: s.studentNo ? String(s.studentNo).trim() : null,
-      sortOrder: idx + 1
+      sortOrder: idx + 1,
+      status: s.status || 'in_school'
     }))
   }
   const { data } = await api.put('/students', payload)
@@ -404,7 +469,8 @@ async function saveAll() {
     id: s.id,
     name: s.name,
     studentNo: s.studentNo || '',
-    sortOrder: s.sortOrder
+    sortOrder: s.sortOrder,
+    status: s.status || 'in_school'
   }))
   refreshDupWarn()
   ElMessage.success(`名单已保存（${students.value.length} 人）`)

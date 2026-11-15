@@ -51,7 +51,9 @@ public class CheckService {
     public CheckResultDTO check(CheckRequest request) {
         termService.ensureActiveView();
         Long activeTermId = termService.getActiveTermId();
-        List<Student> baseline = studentRepository.findAllByTermIdOrderBySortOrderAscIdAsc(activeTermId);
+        // 筛查基准 = 在班学生；离班学生不算未参与
+        List<Student> baseline = studentRepository.findAllByTermIdOrderBySortOrderAscIdAsc(activeTermId)
+                .stream().filter(Student::isInSchool).toList();
         CheckResultDTO result = buildResult(request.getText(), baseline);
         String title = request.getTitle() == null || request.getTitle().isBlank()
                 ? "名单核对 " + Instant.now()

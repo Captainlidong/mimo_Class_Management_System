@@ -144,12 +144,26 @@ class ApiIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict());
 
+    }
+
+    /** 恢复种子名单（diff 语义下 TestUser 会软移出种子学生；测试结束后还原，避免污染后续类）。 */
+    private void restoreSeedRoster() throws Exception {
+        String[] names = com.classmgmt.service.StudentService.SAMPLE_NAMES;
+        StudentsReplaceRequest request = new StudentsReplaceRequest();
+        for (int i = 0; i < names.length; i++) {
+            StudentsReplaceRequest.Item it = new StudentsReplaceRequest.Item();
+            it.setName(names[i]);
+            it.setStudentNo(String.format("2024%02d", i + 1));
+            it.setSortOrder(i + 1);
+            request.getStudents().add(it);
+        }
         mockMvc.perform(post("/api/students/unlock")).andExpect(status().isOk());
         mockMvc.perform(put("/api/students")
                         .contentType(MediaType.APPLICATION_JSON)
                         .characterEncoding(StandardCharsets.UTF_8)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
+        restoreSeedRoster();
     }
 
     @Test

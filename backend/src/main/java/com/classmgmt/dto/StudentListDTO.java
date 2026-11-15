@@ -37,6 +37,7 @@ public class StudentListDTO {
         private String name;
         private String studentNo;
         private Integer sortOrder;
+        private String status;
 
         public Long getId() {
             return id;
@@ -68,6 +69,14 @@ public class StudentListDTO {
 
         public void setSortOrder(Integer sortOrder) {
             this.sortOrder = sortOrder;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public void setStatus(String status) {
+            this.status = status;
         }
     }
 }

@@ -10,5 +10,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 
     List<Student> findAllByTermIdOrderBySortOrderAscIdAsc(Long termId);
 
+    List<Student> findByTermId(Long termId);
+
     void deleteByTermId(Long termId);
 }

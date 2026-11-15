@@ -78,9 +78,12 @@ public class CollectionService {
         if (name == null) {
             throw GlobalExceptionHandler.badRequest("任务名称不能为空");
         }
-        List<Student> roster = studentRepository.findAllByOrderBySortOrderAscIdAsc();
+        // 默认全班 = 在班学生；离班学生不自动进新任务（显式传入的 studentIds 仍需在名单中）
+        // 默认全班 = 在班学生；离班学生不自动进新任务（显式传入的 studentIds 仍校验全量名单）
+        List<Student> rosterAll = studentRepository.findAllByOrderBySortOrderAscIdAsc();
+        List<Student> roster = rosterAll.stream().filter(Student::isInSchool).toList();
         Map<Long, Student> rosterMap = new LinkedHashMap<>();
-        for (Student s : roster) {
+        for (Student s : rosterAll) {
             rosterMap.put(s.getId(), s);
         }
 

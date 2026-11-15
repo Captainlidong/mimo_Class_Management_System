@@ -49,7 +49,7 @@ public class ExportService {
 
     /** 基准名单导出：全班姓名 + 学号，xlsx/csv。 */
     public ResponseEntity<byte[]> exportStudents(String format) {
-        List<com.classmgmt.dto.StudentListDTO.StudentDTO> students = studentService.list().getStudents();
+        List<com.classmgmt.dto.StudentListDTO.StudentDTO> students = studentService.listActive().getStudents();
         String base = "班级名单_" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd"));
         return switch (format) {
             case "xlsx", "excel" -> studentsXlsx(students, base);

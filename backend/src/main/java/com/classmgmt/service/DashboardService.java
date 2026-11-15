@@ -100,7 +100,7 @@ public class DashboardService {
 
         Map<String, Object> students = new LinkedHashMap<>();
         students.put("count", studentRepository.findAll().stream()
-                .filter(s -> termService.matchesView(s.getTermId())).count());
+                .filter(s -> termService.matchesView(s.getTermId()) && s.isInSchool()).count());
         students.put("locked", studentService.isLocked());
 
         Map<String, Object> lastCheck = null;

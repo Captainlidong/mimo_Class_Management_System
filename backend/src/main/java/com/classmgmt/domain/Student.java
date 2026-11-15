@@ -34,6 +34,18 @@ public class Student {
     @Column(name = "created_at")
     private Instant createdAt;
 
+    /** 档案状态：in_school（在班，默认）/ left（离班）。离班为标记而非删除，历史引用保留。 */
+    @Column(name = "status", length = 16)
+    private String status;
+
+    public static final String STATUS_IN = "in_school";
+    public static final String STATUS_LEFT = "left";
+
+    /** null 视为在班（兼容旧数据）。 */
+    public boolean isInSchool() {
+        return !STATUS_LEFT.equals(status);
+    }
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
@@ -79,5 +91,13 @@ public class Student {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getStatus() {
+        return status == null ? STATUS_IN : status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 }
