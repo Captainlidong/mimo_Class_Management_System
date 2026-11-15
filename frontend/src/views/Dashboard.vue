@@ -63,7 +63,49 @@
       </div>
     </div>
 
-    <!-- 说明 -->
+    <!-- 数据洞察 -->
+    <div class="page-card" style="margin-bottom: 16px">
+      <h3 style="margin: 0 0 10px">数据洞察</h3>
+      <el-row :gutter="12">
+        <el-col :md="12" :sm="24" style="margin-bottom: 12px">
+          <div class="chart-card">
+            <div class="chart-title">近 8 周请假人次</div>
+            <TrendChart :labels="trends.weeks" :series="leaveSeries" :height="210" />
+          </div>
+        </el-col>
+        <el-col :md="12" :sm="24" style="margin-bottom: 12px">
+          <div class="chart-card">
+            <div class="chart-title">近 8 周筛查次数</div>
+            <TrendChart :labels="trends.weeks" :series="checkSeries" :height="210" />
+          </div>
+        </el-col>
+        <el-col :md="12" :sm="24" style="margin-bottom: 12px">
+          <div class="chart-card">
+            <div class="chart-title">请假类型分布（近 30 天）</div>
+            <DonutChart :items="leavePie" :height="210" />
+          </div>
+        </el-col>
+        <el-col :md="12" :sm="24" style="margin-bottom: 12px">
+          <div class="chart-card">
+            <div class="chart-title">收集任务进度</div>
+            <div class="bar-list">
+              <div v-for="b in trends.collectionBars" :key="b.name" class="bar-row">
+                <span class="bar-name" :title="b.name">{{ b.name }}</span>
+                <div class="bar-track">
+                  <div class="bar-fill" :style="{ width: pct(b) + '%', background: b.kind === 'distribute' ? '#D9A441' : '#3E5C4B' }"></div>
+                </div>
+                <span class="bar-num">{{ b.received }}/{{ b.total }}</span>
+              </div>
+              <div v-if="!trends.collectionBars.length" class="muted" style="padding: 20px 0; text-align: center">
+                暂无收集任务
+              </div>
+            </div>
+          </div>
+        </el-col>
+      </el-row>
+    </div>
+
+    <!-- 工作台说明 -->
     <div class="page-card">
       <h3>工作台说明</h3>
       <p class="muted" style="margin: 6px 0 0">
@@ -75,14 +117,32 @@
 </template>
 
 <script setup>
-import { onActivated, onMounted, ref } from 'vue'
+import { computed, onActivated, onMounted, ref } from 'vue'
 import api from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import DesktopIcon from '../components/DesktopIcon.vue'
+import TrendChart from '../components/TrendChart.vue'
+import DonutChart from '../components/DonutChart.vue'
 
 const auth = useAuthStore()
 const data = ref({})
+const trends = ref({ weeks: [], weeklyLeave: [], weeklyChecks: [], leaveTypePie: [], collectionBars: [] })
+const trendsLoaded = ref(false)
 const loaded = ref(false)
+
+const leaveSeries = computed(() => [
+  { name: '请假人次', data: trends.value.weeklyLeave, color: '#3E5C4B', type: 'line' }
+])
+const checkSeries = computed(() => [
+  { name: '筛查次数', data: trends.value.weeklyChecks, color: '#D9A441', type: 'bar' }
+])
+const leavePie = computed(() =>
+  (trends.value.leaveTypePie || []).map((p, i) => ({
+    name: p.name,
+    value: p.value,
+    color: ['#C96F5E', '#D9A441', '#8FB79B', '#CBDACB'][i % 4]
+  }))
+)
 
 const greeting = (() => {
   const h = new Date().getHours()
@@ -107,13 +167,25 @@ function fmtCheckTime(value) {
   return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+// 收集横条百分比
+function pct(b) {
+  return b.total ? Math.round((b.received / b.total) * 100) : 0
+}
+
 async function load() {
   try {
     const { data: res } = await api.get('/dashboard/summary')
     data.value = res.data || {}
     loaded.value = true
   } catch {
-    // 拦截器已统一提示（未登录等场景）
+    // 拦截器已提示（未登录等场景）
+  }
+  try {
+    const { data: res } = await api.get('/dashboard/trends')
+    trends.value = res.data || trends.value
+    trendsLoaded.value = true
+  } catch {
+    /* 拦截器已提示 */
   }
 }
 
@@ -152,6 +224,63 @@ onActivated(load)
 
 .stat-row {
   margin-bottom: 16px;
+}
+
+.chart-card {
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  padding: 12px 14px 6px;
+  background: #fff;
+}
+
+.chart-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-ink);
+  margin-bottom: 4px;
+}
+
+.bar-list {
+  padding: 8px 4px 4px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.bar-name {
+  width: 150px;
+  font-size: 12.5px;
+  color: var(--c-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bar-track {
+  flex: 1;
+  height: 12px;
+  background: var(--c-bg-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+.bar-num {
+  font-size: 12px;
+  color: var(--c-ink-soft);
+  flex-shrink: 0;
+  width: 56px;
+  text-align: right;
 }
 
 .dash-card {

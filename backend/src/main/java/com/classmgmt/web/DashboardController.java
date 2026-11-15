@@ -22,4 +22,9 @@ public class DashboardController {
     public ApiResponse<Map<String, Object>> summary() {
         return ApiResponse.ok(dashboardService.summary());
     }
+
+    @GetMapping("/trends")
+    public ApiResponse<Map<String, Object>> trends() {
+        return ApiResponse.ok(dashboardService.trends());
+    }
 }

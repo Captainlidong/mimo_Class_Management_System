@@ -2,6 +2,13 @@
 
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 风格，版本号语义 `major.minor.patch`。
 
+## [2.1.0] - 2026-11-16 · 统计看板
+
+### 新增
+- **工作台数据洞察区块**：四块图表——近 8 周请假人次折线、近 8 周筛查次数柱状、请假类型分布环形（近 30 天）、收集任务完成横条（收集=绿条/分发=黄条）；新增 `GET /api/dashboard/trends` 聚合端点（按浏览学期过滤）
+- **移动端首页迷你趋势卡**：近 8 周速览（请假/筛查双柱，纯 CSS 实现，移动端不引入 ECharts）
+- 新增通用折线/柱状组件 `TrendChart.vue`（ECharts 按需引入 Line/Bar/Grid/Tooltip/Legend）
+
 ## [2.0.0] - 2026-11-15 · 筛查增强版 + 操作日志
 
 ### 新增
