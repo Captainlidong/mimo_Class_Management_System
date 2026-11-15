@@ -392,8 +392,8 @@ const exportColumnOptions = computed(() => {
 
 // 环形图数据：已完成 vs 未完成
 const donutItems = computed(() => [
-  { name: kindText.value.done, value: receivedCount.value, color: '#5eead4' },
-  { name: kindText.value.undone, value: entries.value.length - receivedCount.value, color: '#fdba74' }
+  { name: kindText.value.done, value: receivedCount.value, color: '#3e5c4b' },
+  { name: kindText.value.undone, value: entries.value.length - receivedCount.value, color: '#d9a441' }
 ])
 const completionPct = computed(() => {
   if (!entries.value.length) return '—'

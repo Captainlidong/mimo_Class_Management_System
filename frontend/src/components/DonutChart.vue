@@ -23,7 +23,7 @@ function render() {
   const data = props.items
     .filter((i) => i.value > 0)
     .map((i) => ({ name: i.name, value: i.value, itemStyle: { color: i.color } }))
-  const seriesData = data.length ? data : [{ name: '暂无数据', value: 1, itemStyle: { color: '#f6e7ee' } }]
+  const seriesData = data.length ? data : [{ name: '暂无数据', value: 1, itemStyle: { color: '#eef4ee' } }]
   const option = {
     tooltip: { trigger: 'item', formatter: '{b}: {c}（{d}%）' },
     legend: {
@@ -40,7 +40,7 @@ function render() {
             type: 'text',
             left: 'center',
             top: '36%',
-            style: { text: props.centerValue, fontSize: 26, fontWeight: 800, fill: '#f43f7a' }
+            style: { text: props.centerValue, fontSize: 26, fontWeight: 800, fill: '#2f4838' }
           },
           {
             type: 'text',
