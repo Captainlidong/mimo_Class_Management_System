@@ -70,19 +70,19 @@
         <el-col :md="12" :sm="24" style="margin-bottom: 12px">
           <div class="chart-card">
             <div class="chart-title">近 8 周请假人次</div>
-            <TrendChart :labels="trends.weeks" :series="leaveSeries" :height="210" />
+            <TrendChart :labels="trends.weeks" :series="leaveSeries" :height="210" :dark="theme.isDark" />
           </div>
         </el-col>
         <el-col :md="12" :sm="24" style="margin-bottom: 12px">
           <div class="chart-card">
             <div class="chart-title">近 8 周筛查次数</div>
-            <TrendChart :labels="trends.weeks" :series="checkSeries" :height="210" />
+            <TrendChart :labels="trends.weeks" :series="checkSeries" :height="210" :dark="theme.isDark" />
           </div>
         </el-col>
         <el-col :md="12" :sm="24" style="margin-bottom: 12px">
           <div class="chart-card">
             <div class="chart-title">请假类型分布（近 30 天）</div>
-            <DonutChart :items="leavePie" :height="210" />
+            <DonutChart :items="leavePie" :height="210" :dark="theme.isDark" />
           </div>
         </el-col>
         <el-col :md="12" :sm="24" style="margin-bottom: 12px">
@@ -120,11 +120,13 @@
 import { computed, onActivated, onMounted, ref } from 'vue'
 import api from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 import DesktopIcon from '../components/DesktopIcon.vue'
 import TrendChart from '../components/TrendChart.vue'
 import DonutChart from '../components/DonutChart.vue'
 
 const auth = useAuthStore()
+const theme = useThemeStore()
 const data = ref({})
 const trends = ref({ weeks: [], weeklyLeave: [], weeklyChecks: [], leaveTypePie: [], collectionBars: [] })
 const trendsLoaded = ref(false)
@@ -199,7 +201,7 @@ onActivated(load)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(135deg, #fbf8f0 0%, #eef4ee 100%);
+  background: linear-gradient(135deg, var(--c-bg-2) 0%, var(--c-sage-light) 100%);
   margin-bottom: 16px;
 }
 
@@ -230,7 +232,7 @@ onActivated(load)
   border: 1px solid var(--c-line);
   border-radius: 14px;
   padding: 12px 14px 6px;
-  background: #fff;
+  background: var(--c-card);
 }
 
 .chart-title {

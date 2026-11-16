@@ -102,7 +102,7 @@ body,
 }
 
 .aside {
-  background: linear-gradient(175deg, #fbf8f0 0%, #f5f1e6 100%);
+  background: linear-gradient(175deg, var(--c-bg-2) 0%, var(--c-sage-card) 100%);
   border-right: 1px solid rgba(62, 92, 75, 0.12);
   display: flex;
   flex-direction: column;
@@ -317,7 +317,7 @@ body,
   min-width: 118px;
   padding: 14px 16px;
   border-radius: 16px;
-  background: linear-gradient(145deg, #fbf8f0, #fff);
+  background: var(--c-bg-2);
   border: 1px solid rgba(62, 92, 75, 0.12);
   box-shadow: 0 4px 16px rgba(62, 92, 75, 0.08);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
@@ -416,7 +416,7 @@ body,
 
 /* primary+plain 组合：白底绿字 → 悬停翻成深绿底白字，保证对比度 */
 .el-button--primary.is-plain {
-  background: #fff !important;
+  background: var(--c-card) !important;
   border: 1.5px solid #b9cdbe !important;
   color: var(--c-primary-deep) !important;
   box-shadow: 0 2px 8px rgba(62, 92, 75, 0.12) !important;
@@ -450,7 +450,7 @@ body,
 
 .el-button--default,
 .el-button.is-plain {
-  background: #fff;
+  background: var(--c-card);
   border: 1.5px solid #d8d2c2;
   color: var(--c-primary-deep);
   box-shadow: 0 2px 8px rgba(62, 92, 75, 0.08);
@@ -483,7 +483,7 @@ body,
 .el-button--link:not(.is-disabled):hover,
 .el-button--link:not(.is-disabled):focus {
   transform: none !important;
-  background: #f0efe8 !important;
+  background: rgba(127, 176, 143, 0.14) !important;
 }
 
 .el-button--primary.is-link,
@@ -542,7 +542,7 @@ body,
   box-shadow: 0 0 0 1.5px #d8d2c2 inset !important;
   line-height: 1.55;
   transition: box-shadow 0.25s ease !important;
-  background: linear-gradient(180deg, #fbfaf6, #fff) !important;
+  background: var(--c-card) !important;
 }
 
 .el-textarea__inner:focus {
@@ -668,7 +668,7 @@ body,
 
 /* 导入区虚线框 + 拖拽 */
 .import-panel {
-  background: linear-gradient(145deg, #fcfaf5, #f7faf5) !important;
+  background: var(--c-bg-2) !important;
   border: 1.5px dashed #a9c0b0 !important;
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease;
@@ -680,7 +680,7 @@ body,
 
 .import-panel.drop-zone.is-dragover {
   border-color: var(--c-primary) !important;
-  background: linear-gradient(145deg, #e7f0e9, #dce8dc) !important;
+  background: linear-gradient(145deg, var(--c-sage-light), var(--c-sage-card)) !important;
   box-shadow: 0 12px 32px rgba(62, 92, 75, 0.2);
   transform: scale(1.01);
 }
@@ -740,7 +740,7 @@ body,
   padding: 12px;
   border-radius: 14px;
   border: 1.5px dashed #a9c0b0;
-  background: linear-gradient(145deg, #fcfaf5, #fff);
+  background: var(--c-bg-2);
   cursor: pointer;
   transition: all 0.2s ease;
   font-weight: 600;
@@ -749,7 +749,7 @@ body,
 .check-drop:hover,
 .check-drop.is-dragover {
   border-color: var(--c-primary);
-  background: linear-gradient(145deg, #e7f0e9, #f2f8f2);
+  background: linear-gradient(145deg, var(--c-sage-light), var(--c-sage-card));
   box-shadow: 0 8px 20px rgba(62, 92, 75, 0.16);
   transform: translateY(-2px);
 }
@@ -782,4 +782,246 @@ input[type="file"] {
 /* 关闭默认深色 body 灰 */
 body {
   background: var(--c-bg);
+}
+
+/* ============================================================
+   深色模式（html.dark，主题开关驱动）
+   EP 组件由 dark/css-vars.css 联动；此处覆盖自定义规则与浅色硬编码
+   ============================================================ */
+html.dark {
+  --c-bg: #1a211d;
+  --c-bg-2: #222b26;
+  --c-card: #242e28;
+  --c-ink: #e8ede9;
+  --c-ink-soft: #93a398;
+  --c-primary: #7fb08f;
+  --c-primary-deep: #9bc4a9;
+  --c-primary-soft: rgba(127, 176, 143, 0.18);
+  --c-line: #39443d;
+  --c-mint: #7fb08f;
+  --c-mint-soft: rgba(127, 176, 143, 0.16);
+  --c-peach: #c98f7c;
+  --c-peach-soft: rgba(217, 117, 107, 0.16);
+  --c-taro: #3a4740;
+  --c-taro-soft: rgba(127, 176, 143, 0.12);
+  --c-warn: #e0b455;
+  --c-warn-soft: rgba(224, 180, 85, 0.16);
+  --c-danger: #d9756b;
+  --c-danger-soft: rgba(217, 117, 107, 0.16);
+  --c-ok: #7fb08f;
+  --el-color-primary: #7fb08f;
+  --el-color-primary-light-3: #5f8a70;
+  --el-color-primary-light-5: #4a6e58;
+  --el-color-primary-light-7: #35523f;
+  --el-color-primary-light-8: #2c4433;
+  --el-color-primary-light-9: #24352a;
+  --el-color-primary-dark-2: #9bc4a9;
+  --el-bg-color: #242e28;
+  --el-bg-color-overlay: #2a362f;
+  --el-bg-color-page: #1a211d;
+  --el-fill-color-blank: #242e28;
+  --el-fill-color-light: #2a362f;
+  --el-fill-color-lighter: #2f3a33;
+  --el-text-color-primary: #e8ede9;
+  --el-text-color-regular: #c5d0c9;
+  --el-text-color-secondary: #93a398;
+  --el-border-color: #39443d;
+  --el-border-color-light: #39443d;
+  --el-border-color-lighter: #323d35;
+  --el-box-shadow-light: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+html.dark body {
+  background:
+    radial-gradient(1000px 500px at 85% -10%, rgba(127, 176, 143, 0.12) 0%, transparent 55%),
+    var(--c-bg);
+}
+
+html.dark .aside {
+  background: linear-gradient(175deg, #20281f 0%, #1b231c 100%);
+  border-right: 1px solid rgba(127, 176, 143, 0.16);
+}
+
+html.dark .aside::before {
+  background: rgba(127, 176, 143, 0.14);
+}
+
+html.dark .aside::after {
+  background: rgba(127, 176, 143, 0.1);
+}
+
+html.dark .menu .el-menu-item:hover {
+  background: rgba(127, 176, 143, 0.1) !important;
+}
+
+html.dark .menu .el-menu-item.is-active {
+  background: rgba(127, 176, 143, 0.18) !important;
+  border-color: rgba(127, 176, 143, 0.3);
+}
+
+html.dark .el-header.header {
+  background: rgba(36, 46, 40, 0.85);
+  border-bottom: 1px solid rgba(127, 176, 143, 0.14);
+}
+
+html.dark .stat-item {
+  background: linear-gradient(145deg, #26302a, #242e28);
+  border: 1px solid #39443d;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+html.dark .name-chip {
+  background: rgba(127, 176, 143, 0.14);
+  color: #c5d0c9;
+  border-color: rgba(127, 176, 143, 0.2);
+}
+
+html.dark .name-chip.absent {
+  background: rgba(217, 117, 107, 0.16);
+  color: #e0a49b;
+  border-color: rgba(217, 117, 107, 0.25);
+}
+
+html.dark .name-chip.invalid {
+  background: rgba(127, 176, 143, 0.1);
+  color: #a8b8ad;
+  border-color: rgba(127, 176, 143, 0.22);
+}
+
+html.dark .el-input__wrapper {
+  box-shadow: 0 0 0 1.5px #39443d inset !important;
+}
+
+html.dark .el-input__wrapper:hover {
+  box-shadow: 0 0 0 2px #4a5c4e inset !important;
+}
+
+html.dark .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 2.5px rgba(127, 176, 143, 0.55) inset !important;
+}
+
+html.dark .el-textarea__inner {
+  background: #222b26 !important;
+  box-shadow: 0 0 0 1.5px #39443d inset !important;
+}
+
+html.dark .el-textarea__inner:focus {
+  box-shadow: 0 0 0 2.5px rgba(127, 176, 143, 0.55) inset !important;
+}
+
+html.dark .el-table {
+  --el-table-border-color: #323d35;
+  --el-table-header-bg-color: #26302a;
+  --el-table-row-hover-bg-color: #2a362f;
+  --el-table-tr-bg-color: #242e28;
+  --el-fill-color-lighter: #2a362f;
+}
+
+html.dark .el-table th.el-table__cell {
+  background: #26302a !important;
+  color: #c5d0c9;
+}
+
+html.dark .el-table .el-table__cell {
+  border-bottom-color: #323d35 !important;
+}
+
+html.dark .el-button--default,
+html.dark .el-button.is-plain:not(.el-button--primary) {
+  background: #242e28;
+  border-color: #39443d;
+  color: #c5d0c9;
+}
+
+html.dark .el-button--primary.is-plain {
+  background: #242e28 !important;
+  border-color: rgba(127, 176, 143, 0.4) !important;
+  color: #9bc4a9 !important;
+}
+
+html.dark .el-alert--info {
+  background: rgba(127, 176, 143, 0.1) !important;
+  border: 1px solid rgba(127, 176, 143, 0.2);
+}
+
+html.dark .el-dialog {
+  background: #242e28;
+}
+
+html.dark .el-dialog__title {
+  color: #e8ede9;
+}
+
+html.dark .main::-webkit-scrollbar-thumb {
+  background: #39443d;
+}
+
+html.dark .collapse-btn {
+  border-color: #39443d;
+  color: #93a398;
+}
+
+html.dark .collapse-btn:hover {
+  background: rgba(127, 176, 143, 0.12);
+}
+
+html.dark .brand-title,
+html.dark .brand-sub {
+  color: #c5d0c9;
+}
+
+html.dark .login-logo {
+  background: rgba(127, 176, 143, 0.18);
+  color: #9bc4a9;
+}
+
+html.dark .login-title {
+  color: #e8ede9;
+}
+
+html.dark .term-select :deep(.el-select__wrapper),
+html.dark .el-select .el-select__wrapper {
+  background: #242e28;
+  box-shadow: 0 0 0 1.5px #39443d inset !important;
+}
+
+html.dark .theme-dd .el-dropdown-menu {
+  background: #242e28;
+  border-color: #39443d;
+}
+
+html.dark .bell-btn {
+  background: #242e28;
+  border-color: #39443d;
+  color: #c5d0c9;
+}
+
+html.dark .bell-btn:hover {
+  background: rgba(127, 176, 143, 0.14);
+}
+
+html.dark .el-drawer {
+  background: #242e28;
+}
+
+html.dark .el-drawer .el-drawer__title {
+  color: #e8ede9;
+}
+
+html.dark .notify-item {
+  border-bottom-color: #323d35;
+}
+
+html.dark .notify-item:hover,
+html.dark .notify-item.unread {
+  background: #2a362f;
+}
+
+html.dark .notify-title {
+  color: #e8ede9;
+}
+
+html.dark .el-message-box {
+  background: #242e28;
+  border-color: #39443d;
 }

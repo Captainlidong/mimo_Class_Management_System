@@ -12,8 +12,21 @@ const props = defineProps({
   labels: { type: Array, required: true },
   // [{ name, data:[...], color, type: 'line'|'bar' }]
   series: { type: Array, required: true },
-  height: { type: Number, default: 250 }
+  height: { type: Number, default: 250 },
+  dark: { type: Boolean, default: false }
 })
+
+function inkColor() {
+  return props.dark ? '#93a398' : '#8a9a8e'
+}
+
+function lineColor() {
+  return props.dark ? '#39443d' : '#e8e2d4'
+}
+
+function splitColor() {
+  return props.dark ? '#2f3a33' : '#f0eae0'
+}
 
 const el = ref(null)
 let chart = null
@@ -38,13 +51,13 @@ function render() {
       itemWidth: 10,
       itemHeight: 10,
       itemGap: 14,
-      textStyle: { color: '#8a9a8e', fontSize: 12 }
+      textStyle: { color: inkColor(), fontSize: 12 }
     },
     grid: { left: 40, right: 24, top: 28, bottom: 44 },
     xAxis: {
       type: 'category',
       data: props.labels,
-      axisLine: { lineStyle: { color: '#e8e2d4' } },
+      axisLine: { lineStyle: { color: lineColor() } },
       axisTick: { show: false },
       axisLabel: { color: '#8a9a8e', fontSize: 11 }
     },
@@ -53,8 +66,8 @@ function render() {
       minInterval: 1,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#8a9a8e', fontSize: 11 },
-      splitLine: { lineStyle: { color: '#f0eae0' } }
+      axisLabel: { color: inkColor(), fontSize: 11 },
+      splitLine: { lineStyle: { color: splitColor() } }
     },
     series
   }
@@ -79,7 +92,7 @@ onBeforeUnmount(() => {
   }
 })
 
-watch(() => [props.labels, props.series], render, { deep: true })
+watch(() => [props.labels, props.series, props.dark], render, { deep: true })
 </script>
 
 <template>

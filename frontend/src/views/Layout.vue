@@ -85,6 +85,18 @@
         <div class="header-title">{{ title }}</div>
         <div class="header-actions">
           <template v-if="auth.statusLoaded">
+            <el-dropdown class="theme-dd" trigger="click" @command="onThemeCommand">
+              <span class="theme-btn" title="主题（深色模式开关）">
+                <DesktopIcon name="moon" :size="18" />
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="auto">跟随系统</el-dropdown-item>
+                  <el-dropdown-item command="light">浅色</el-dropdown-item>
+                  <el-dropdown-item command="dark">深色</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
             <el-select
               v-if="term.loaded"
               :model-value="term.viewTermId"
@@ -220,11 +232,13 @@ import { ElMessage, ElNotification } from 'element-plus'
 import api, { onUnauthorized } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import { useTermStore } from '../stores/term'
+import { useThemeStore } from '../stores/theme'
 import DesktopIcon from '../components/DesktopIcon.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
 const term = useTermStore()
+const theme = useThemeStore()
 const active = computed(() => route.path)
 const title = computed(() => route.meta.title || '喵班 · 班级事务管理系统')
 const footerText = computed(() => (auth.authRequired ? '🔒 已启用登录保护' : '默认仅本机访问'))
@@ -278,6 +292,10 @@ async function readOne(n) {
 
 function onTermChange(id) {
   term.switchTo(id)
+}
+
+function onThemeCommand(cmd) {
+  theme.setPref(cmd)
 }
 
 const form = reactive({ username: '', password: '', captchaCode: '' })
@@ -359,6 +377,7 @@ async function notifyTodos() {
 }
 
 onMounted(async () => {
+  theme.init()
   await auth.refresh()
   await term.refresh()
   loadNotifications()
@@ -378,6 +397,33 @@ onMounted(async () => {
 
 .term-select {
   width: 176px;
+}
+
+.theme-dd {
+  display: inline-flex;
+}
+
+.theme-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--c-line);
+  background: var(--c-card);
+  color: var(--c-primary-deep);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.theme-btn:hover {
+  background: var(--c-primary-soft);
+}
+
+.theme-btn .el-dropdown-selfdefine,
+.theme-btn svg {
+  outline: none;
 }
 
 .term-select :deep(.el-select__wrapper) {

@@ -86,7 +86,7 @@
 
       <el-row :gutter="12">
         <el-col :md="8" :sm="24" style="margin-bottom: 12px">
-          <div class="page-card" style="box-shadow: none; border: 1px solid #e5e7eb">
+          <div class="page-card" style="box-shadow: none; border: 1px solid var(--c-line)">
             <h3>已参与</h3>
             <div>
               <span v-for="n in result.participated" :key="'p' + n" class="name-chip">{{ n }}</span>
@@ -95,7 +95,7 @@
           </div>
         </el-col>
         <el-col :md="8" :sm="24" style="margin-bottom: 12px">
-          <div class="page-card" style="box-shadow: none; border: 1px solid #e5e7eb">
+          <div class="page-card" style="box-shadow: none; border: 1px solid var(--c-line)">
             <h3>未参与</h3>
             <div>
               <span v-for="n in result.absent" :key="'a' + n" class="name-chip absent">{{ n }}</span>
@@ -104,7 +104,7 @@
           </div>
         </el-col>
         <el-col :md="8" :sm="24" style="margin-bottom: 12px">
-          <div class="page-card" style="box-shadow: none; border: 1px solid #e5e7eb">
+          <div class="page-card" style="box-shadow: none; border: 1px solid var(--c-line)">
             <h3>无效/异常</h3>
             <div>
               <span v-for="n in result.invalid" :key="'i' + n" class="name-chip invalid">{{ n }}</span>
@@ -442,7 +442,7 @@ onMounted(loadTasks)
   white-space: pre-wrap;
   font-size: 12px;
   color: var(--c-ink-soft);
-  background: #fbf8f0;
+  background: var(--c-bg-2);
   border-radius: 8px;
   padding: 10px;
   max-height: 380px;

@@ -388,7 +388,7 @@ onActivated(() => {
 }
 
 .restore-chip {
-  background: #fff;
+  background: var(--c-card);
   border: 1px solid var(--c-line);
   border-radius: 999px;
   padding: 4px 10px;
@@ -408,7 +408,7 @@ onActivated(() => {
 }
 
 .info-item {
-  background: #fbf8f0;
+  background: var(--c-bg-2);
   border: 1px solid var(--c-line);
   border-radius: 14px;
   padding: 12px 14px;

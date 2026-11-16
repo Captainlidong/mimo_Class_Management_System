@@ -12,18 +12,36 @@ const props = defineProps({
   items: { type: Array, required: true },
   centerValue: { type: String, default: '' },
   centerLabel: { type: String, default: '' },
-  height: { type: Number, default: 250 }
+  height: { type: Number, default: 250 },
+  dark: { type: Boolean, default: false }
 })
+
+function inkColor() {
+  return props.dark ? '#93a398' : '#7c7a91'
+}
+
+function centerColor() {
+  return props.dark ? '#9bc4a9' : '#2f4838'
+}
+
+function emptyColor() {
+  return props.dark ? 'rgba(127, 176, 143, 0.12)' : '#eef4ee'
+}
+
+function borderColor() {
+  return props.dark ? '#242e28' : '#fff'
+}
 
 const el = ref(null)
 let chart = null
 
 function render() {
   if (!chart) return
+  const inkC = inkColor();
   const data = props.items
     .filter((i) => i.value > 0)
     .map((i) => ({ name: i.name, value: i.value, itemStyle: { color: i.color } }))
-  const seriesData = data.length ? data : [{ name: '暂无数据', value: 1, itemStyle: { color: '#eef4ee' } }]
+  const seriesData = data.length ? data : [{ name: '暂无数据', value: 1, itemStyle: { color: emptyColor() } }]
   const option = {
     tooltip: { trigger: 'item', formatter: '{b}: {c}（{d}%）' },
     legend: {
@@ -32,7 +50,7 @@ function render() {
       itemWidth: 10,
       itemHeight: 10,
       itemGap: 14,
-      textStyle: { color: '#7c7a91', fontSize: 12 }
+      textStyle: { color: inkC, fontSize: 12 }
     },
     graphic: props.centerValue
       ? [
@@ -40,13 +58,13 @@ function render() {
             type: 'text',
             left: 'center',
             top: '36%',
-            style: { text: props.centerValue, fontSize: 26, fontWeight: 800, fill: '#2f4838' }
+            style: { text: props.centerValue, fontSize: 26, fontWeight: 800, fill: centerColor() }
           },
           {
             type: 'text',
             left: 'center',
             top: '52%',
-            style: { text: props.centerLabel, fontSize: 12, fill: '#7c7a91' }
+            style: { text: props.centerLabel, fontSize: 12, fill: inkC }
           }
         ]
       : [],
@@ -56,7 +74,7 @@ function render() {
         radius: ['56%', '78%'],
         center: ['50%', '42%'],
         avoidLabelOverlap: true,
-        itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+        itemStyle: { borderRadius: 6, borderColor: borderColor(), borderWidth: 2 },
         label: { show: false },
         labelLine: { show: false },
         data: seriesData
@@ -84,7 +102,7 @@ onBeforeUnmount(() => {
   }
 })
 
-watch(() => [props.items, props.centerValue, props.centerLabel], render, { deep: true })
+watch(() => [props.items, props.centerValue, props.centerLabel, props.dark], render, { deep: true })
 </script>
 
 <template>
