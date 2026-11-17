@@ -334,6 +334,7 @@
 import { computed, onDeactivated, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api/client'
+import { copyToClipboard } from '../utils/clipboard'
 import DonutChart from '../components/DonutChart.vue'
 
 const batches = ref([])
@@ -671,10 +672,10 @@ async function copyUndelivered() {
     return
   }
   const text = `以下同学还未提交${currentBatch.value.name}申请表：${names.join('、')}，请尽快交给班长，谢谢配合~`
-  try {
-    await navigator.clipboard.writeText(text)
+  const ok = await copyToClipboard(text)
+  if (ok) {
     ElMessage.success(`已复制 ${names.length} 位未交表同学，去群里催交吧 📋`)
-  } catch {
+  } else {
     ElMessage.error('复制失败，请手动复制')
   }
 }

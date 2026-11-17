@@ -158,6 +158,7 @@
 import { onDeactivated, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api/client'
+import { copyToClipboard } from '../utils/clipboard'
 
 const categoryOptions = [
   { value: 'notice', label: '通知转发' },
@@ -337,10 +338,10 @@ async function copyText(text) {
     ElMessage.warning('修改稿还是空的，先写点什么吧')
     return
   }
-  try {
-    await navigator.clipboard.writeText(text)
+  const ok = await copyToClipboard(text)
+  if (ok) {
     ElMessage.success('已复制，去群里粘贴吧 🎀')
-  } catch {
+  } else {
     ElMessage.error('复制失败，请手动选择文本复制')
   }
 }

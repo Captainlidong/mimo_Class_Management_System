@@ -292,6 +292,7 @@
 import { computed, onDeactivated, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api/client'
+import { copyToClipboard } from '../utils/clipboard'
 import DonutChart from '../components/DonutChart.vue'
 
 const tasks = ref([])
@@ -646,10 +647,10 @@ async function copyUndone() {
     return
   }
   const text = kindText.value.copyTemplate(names.join('、'), currentTask.value.name)
-  try {
-    await navigator.clipboard.writeText(text)
+  const ok = await copyToClipboard(text)
+  if (ok) {
     ElMessage.success(kindText.value.copyTip(names.length))
-  } catch {
+  } else {
     ElMessage.error('复制失败，请手动复制')
   }
 }

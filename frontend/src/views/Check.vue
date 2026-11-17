@@ -164,6 +164,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import api from '../api/client'
+import { copyToClipboard } from '../utils/clipboard'
 import { useCheckStore } from '../stores/check'
 
 const store = useCheckStore()
@@ -345,10 +346,14 @@ async function runCheck() {
 
 async function copyAbsent() {
   const content = (result.value.absent || []).join('\n')
-  try {
-    await navigator.clipboard.writeText(content)
+  if (!content) {
+    ElMessage.success('这次没有未参与的同学 🎉')
+    return
+  }
+  const ok = await copyToClipboard(content)
+  if (ok) {
     ElMessage.success('未参与名单已复制')
-  } catch {
+  } else {
     ElMessage.warning('复制失败，请手动选择文本')
   }
 }
