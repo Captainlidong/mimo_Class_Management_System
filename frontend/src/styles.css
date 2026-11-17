@@ -615,6 +615,13 @@ body,
   z-index: 3200 !important;
 }
 
+/* 消息提示/通知必须盖在弹窗之上：上面把弹窗钉在 3000+，而 ElMessage/ElNotification
+   只有框架默认的 ~2000 内联层级，在编辑弹窗里操作时 toast 会被弹窗遮住 */
+.el-message,
+.el-notification {
+  z-index: 3400 !important;
+}
+
 .el-dialog__title {
   font-weight: 800;
   color: var(--c-ink);
